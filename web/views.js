@@ -392,6 +392,12 @@ export function drawTile(root, model, memory) {
   // What could not be drawn, and why.
   for (const problem of model.problems) body.append(el("p", "problem", problem));
 
-  root.replaceChildren(head, body);
+  // The face is the part that is redrawn. Edit mode puts its own controls next to it.
+  let face = root.querySelector(":scope > .face");
+  if (!face) {
+    face = el("div", "face");
+    root.prepend(face);
+  }
+  face.replaceChildren(head, body);
   if (hadFocus) root.querySelector(".spark")?.focus({ preventScroll: true });
 }

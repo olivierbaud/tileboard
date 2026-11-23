@@ -139,13 +139,39 @@ export async function openBrowser({ port = 9333 } = {}) {
       await sleep(60);
     },
 
-    /** Presses a key by its name: "ArrowLeft", "Tab", "Escape", "Enter". */
-    async press(key) {
-      const codes = { ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Tab: 9, Escape: 27, Enter: 13 };
-      const params = { key, code: key, windowsVirtualKeyCode: codes[key] };
+    /** Presses a key by its name: "ArrowLeft", "Tab", "Escape", "Enter", "Delete". `shift` holds Shift down. */
+    async press(key, { shift = false } = {}) {
+      const codes = { ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Tab: 9, Escape: 27, Enter: 13, Delete: 46 };
+      const params = { key, code: key, windowsVirtualKeyCode: codes[key], modifiers: shift ? 8 : 0 };
       await send("Input.dispatchKeyEvent", { type: "keyDown", ...params });
       await send("Input.dispatchKeyEvent", { type: "keyUp", ...params });
       await sleep(60);
+    },
+
+    /** Types text into whatever has the focus. */
+    async type(text) {
+      await send("Input.insertText", { text });
+      await sleep(60);
+    },
+
+    /** The middle of the first element `find` (an expression run in the page) gives, as { x, y }; null if none. */
+    async middleOf(find) {
+      return this.evaluate(`(() => {
+        const node = ${find};
+        if (!node) return null;
+        node.scrollIntoView({ block: "nearest" });
+        const box = node.getBoundingClientRect();
+        return { x: box.x + box.width / 2, y: box.y + box.height / 2, width: box.width, height: box.height };
+      })()`);
+    },
+
+    /** Clicks the element `find` gives. Throws if there is none. */
+    async clickOn(find) {
+      const at = await this.middleOf(find);
+      if (!at) throw new Error(`nothing to click: ${find}`);
+      await this.moveTo(at.x, at.y);
+      await this.click(at.x, at.y);
+      await sleep(120);
     },
 
     /**

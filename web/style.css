@@ -74,10 +74,62 @@ body {
 
 .bar {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 16px;
-  padding: 10px calc(var(--gap) + 12px) 8px;
+  min-height: 46px;
+  padding: 6px calc(var(--gap) + 12px);
+}
+
+.bar .status {
+  margin-left: auto;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* --------------------------------------------------------------- buttons */
+
+button {
+  padding: 5px 12px 6px;
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--ink-3);
+  border-radius: 2px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--ink);
+}
+
+button.primary {
+  background: var(--ink);
+  color: var(--tile);
+  border-color: var(--ink);
+}
+
+button.small {
+  padding: 2px 8px 3px;
+  font-size: 0.82rem;
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.edit-hint {
+  margin: 0 6px 0 0;
+  color: var(--ink-2);
+  font-size: 0.85rem;
 }
 
 .name {
@@ -113,13 +165,19 @@ body {
   grid-row: calc(var(--y) + 1) / span var(--h);
   container-type: size;
   position: relative;
-  display: flex;
-  flex-direction: column;
   min-width: 0;
-  padding: 10px 12px 11px 14px;
   overflow: hidden;
   background: var(--tile);
   border-radius: 2px;
+}
+
+/* What the tile shows. (Edit mode adds its controls beside it.) */
+.face {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  padding: 10px 12px 11px 14px;
 }
 
 /* A tile with a warning or a critical value carries a strip on its edge,
@@ -601,6 +659,294 @@ body {
 
   .light .icon {
     font-size: clamp(20px, 44cqh, 40px);
+  }
+}
+
+/* ------------------------------------------------------------- edit mode */
+
+.editing .tile {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+/* While editing, what a tile shows is only looked at: links and readouts are off. */
+.editing .face {
+  pointer-events: none;
+}
+
+.editing .tile:focus-visible {
+  outline-offset: -2px;
+}
+
+.tile.dragging {
+  z-index: 3;
+  cursor: grabbing;
+  opacity: 0.92;
+  outline: 2px solid var(--series);
+}
+
+.tile.resizing {
+  z-index: 2;
+  outline: 2px solid var(--series);
+}
+
+/* Where the dragged tile will land. */
+.ghost {
+  grid-column: calc(var(--x) + 1) / span var(--w);
+  grid-row: calc(var(--y) + 1) / span var(--h);
+  border: 2px dashed var(--ink-3);
+  border-radius: 2px;
+}
+
+.tools {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 2px;
+  background: var(--tile);
+  border-radius: 2px;
+}
+
+.tool {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-color: transparent;
+}
+
+.tool svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The corner to pull: three short strokes, like the grip of a window. */
+.grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 22px;
+  height: 22px;
+  cursor: nwse-resize;
+  touch-action: none;
+  background:
+    linear-gradient(135deg, transparent 0 46%, var(--ink-3) 46% 54%, transparent 54%) 100% 100% / 16px 16px no-repeat,
+    linear-gradient(135deg, transparent 0 46%, var(--ink-3) 46% 54%, transparent 54%) 100% 100% / 9px 9px no-repeat;
+}
+
+@media (max-width: 720px) {
+  .editing .tile {
+    cursor: default;
+    touch-action: auto;
+  }
+
+  .grip {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------- dialogs */
+
+dialog {
+  max-width: min(60rem, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  padding: 18px 20px;
+  background: var(--tile);
+  color: var(--ink);
+  border: 0;
+  border-radius: 2px;
+}
+
+dialog::backdrop {
+  background: rgb(16 24 29 / 55%);
+}
+
+.ask p {
+  max-width: 28rem;
+  margin: 0 0 16px;
+}
+
+.ask-row,
+.picker-foot {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* The picker's heading and its buttons stay put; what is between them scrolls. */
+.picker {
+  width: 60rem;
+}
+
+.picker[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.picker > h2 {
+  margin: 0 0 12px;
+  font-size: 1.25rem;
+}
+
+.picker h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+}
+
+.picker-columns {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 28px;
+  min-height: 0;
+  margin-bottom: 14px;
+  padding-right: 6px;
+  overflow-y: auto;
+}
+
+.picker-sources,
+.picker-result {
+  min-width: 0;
+}
+
+.hint {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-bottom: 10px;
+  color: var(--ink-2);
+  font-size: 0.85rem;
+}
+
+input[type="text"],
+input[type="number"],
+select {
+  padding: 5px 8px;
+  background: var(--tile);
+  color: var(--ink);
+  border: 1px solid var(--ink-3);
+  border-radius: 2px;
+  font: inherit;
+}
+
+.source,
+.views {
+  margin: 0 0 12px;
+  padding: 8px 12px 10px;
+  border: 1px solid var(--hairline);
+  border-radius: 2px;
+}
+
+.source legend,
+.views legend {
+  padding: 0 4px;
+  font-weight: 600;
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+}
+
+.choice small {
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: 0.8rem;
+}
+
+.choice:has(input:disabled) {
+  color: var(--ink-3);
+}
+
+.views {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 18px;
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.picked {
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+}
+
+.picked li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.picked li:first-child {
+  border-top: 0;
+}
+
+.picked-name {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.picked-name span {
+  color: var(--ink-2);
+  font-size: 0.8rem;
+}
+
+/* The preview is a real tile on a patch of board, at the size a new tile starts with. */
+.preview {
+  --w: 3;
+  --h: 2;
+  display: grid;
+  width: calc(var(--w) * 96px);
+  max-width: 100%;
+  height: calc(var(--h) * var(--row) + (var(--h) - 1) * var(--gap));
+  padding: var(--gap);
+  background: var(--grout);
+  box-sizing: content-box;
+}
+
+.preview .tile {
+  grid-area: auto;
+}
+
+.preview[data-view="sparkline"] {
+  --w: 5;
+}
+
+.preview[data-view="list"],
+.preview[data-view="table"] {
+  --h: 3;
+}
+
+@media (max-width: 720px) {
+  .picker-columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
   }
 }
 

@@ -28,6 +28,24 @@ pub const FILES: &[WebFile] = &[
         built_in: include_str!("../web/app.js"),
     },
     WebFile {
+        route: "/edit.js",
+        name: "edit.js",
+        content_type: "text/javascript; charset=utf-8",
+        built_in: include_str!("../web/edit.js"),
+    },
+    WebFile {
+        route: "/grid.js",
+        name: "grid.js",
+        content_type: "text/javascript; charset=utf-8",
+        built_in: include_str!("../web/grid.js"),
+    },
+    WebFile {
+        route: "/picker.js",
+        name: "picker.js",
+        content_type: "text/javascript; charset=utf-8",
+        built_in: include_str!("../web/picker.js"),
+    },
+    WebFile {
         route: "/format.js",
         name: "format.js",
         content_type: "text/javascript; charset=utf-8",

@@ -1,6 +1,7 @@
 // The page: loads the layout and the catalogues, keeps asking the dashboard
 // server for data, and redraws the tiles whose data changed.
 
+import { setUpEditing } from "./edit.js";
 import { pollSeconds, sourcesByApp, tileModel } from "./model.js";
 import { drawTile, el, statusIcon } from "./views.js";
 
@@ -27,6 +28,8 @@ const state = {
   disconnectedSince: null,
   /** Goes up each time the board is rebuilt; polling loops of an older round stop. */
   round: 0,
+  /** While the board is being edited: { saved, dirty }. `layout` is then the unsaved one. */
+  editing: null,
 };
 
 async function request(path, options = {}) {
@@ -65,6 +68,7 @@ function buildBoard() {
   board.replaceChildren(...roots);
   drawEmptyBoard();
   drawAll();
+  editing.decorate();
 
   const round = state.round;
   for (const [app, sources] of sourcesByApp(state.layout)) pollLoop(round, app, sources);
@@ -78,7 +82,8 @@ function drawEmptyBoard() {
 
   const box = el("section", "empty-board");
   box.append(el("h2", "", "No tiles yet"));
-  box.append(el("p", "", "Tiles are added in edit mode, which is not built yet. These apps are ready to be shown:"));
+  const how = state.editing ? "Choose Add tile to make the first one." : "Choose Edit, then Add tile, to make the first one.";
+  box.append(el("p", "", `${how} These apps are ready to be shown:`));
   const list = el("ul");
   for (const app of state.apps?.values() ?? []) {
     const item = el("li");
@@ -146,8 +151,9 @@ async function poll(round, app, sources) {
   for (const entry of state.tiles.values()) {
     if (entry.tile.fields.some((field) => field.app === app)) draw(entry);
   }
-  // The layout was saved somewhere else: show the new one.
-  if (answer.layout_rev !== state.layout.rev) await loadLayout().catch(disconnected);
+  // The layout was saved somewhere else: show the new one. (Not while this board is being
+  // edited: that would throw the edits away. Saving will ask which layout to keep.)
+  if (!state.editing && answer.layout_rev !== state.layout.rev) await loadLayout().catch(disconnected);
 }
 
 async function loadLayout() {
@@ -221,6 +227,15 @@ function showStatus() {
 }
 
 // -------------------------------------------------------------------- start
+
+const editing = setUpEditing({
+  state,
+  board,
+  actions: document.getElementById("actions"),
+  rebuild: buildBoard,
+  request,
+  now: () => Date.now() + state.clockSkewMs,
+});
 
 async function start() {
   // The app list can be slow (an app that is down is waited for once), so the board is

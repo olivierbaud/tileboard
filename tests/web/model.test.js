@@ -3,7 +3,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { freshness, pickView, pollSeconds, sourceKey, sourcesByApp, tileModel, worstStatus } from "../../web/model.js";
+import {
+  VIEWS,
+  bestView,
+  freshness,
+  pickView,
+  pollSeconds,
+  presetContent,
+  sourceKey,
+  sourcesByApp,
+  startSize,
+  tileModel,
+  viewFits,
+  worstStatus,
+} from "../../web/model.js";
 
 // ---------------------------------------------------------------- fixtures
 
@@ -148,6 +161,60 @@ test("a view that does not fit the fields falls back to one that does", () => {
     assert.equal(pickView(view, ["number", "text", "status", "series", "list"]), view);
   }
   assert.equal(pickView("sparkline", []), "sparkline", "nothing to draw: nothing to decide");
+});
+
+test("the picker offers a view only when it fits the chosen fields", () => {
+  const offered = (types) => VIEWS.map(([id]) => id).filter((id) => viewFits(id, types));
+  assert.deepEqual(offered(["number"]), ["number", "table", "status"]);
+  assert.deepEqual(offered(["series"]), ["number", "sparkline", "table", "status"]);
+  assert.deepEqual(offered(["list"]), ["list", "table", "status"]);
+  assert.deepEqual(offered(["number", "list"]), ["number", "list", "table", "status"]);
+  assert.deepEqual(offered([]), [], "nothing chosen: nothing to offer");
+});
+
+test("a new tile starts with the view that suits its fields", () => {
+  assert.equal(bestView(["number"]), "number");
+  assert.equal(bestView(["text"]), "number");
+  assert.equal(bestView(["series"]), "sparkline");
+  assert.equal(bestView(["list"]), "list");
+  assert.equal(bestView(["status"]), "status");
+  assert.equal(bestView(["number", "text"]), "number", "a main value with one more line");
+  assert.equal(bestView(["number", "number", "text"]), "table");
+  assert.equal(bestView(["number", "list"]), "list");
+  // Whatever it picks can be drawn as it is.
+  for (const types of [["number"], ["series"], ["list"], ["status"], ["text", "series"], ["list", "number"], ["a", "b", "c"]]) {
+    assert.ok(viewFits(bestView(types), types), types.join(","));
+  }
+});
+
+test("a new tile starts at a size that suits its view", () => {
+  assert.deepEqual(startSize("number", 1), { w: 3, h: 2 });
+  assert.deepEqual(startSize("number", 2), { w: 3, h: 3 });
+  assert.deepEqual(startSize("sparkline", 1), { w: 5, h: 2 });
+  assert.deepEqual(startSize("list", 1), { w: 3, h: 3 });
+  assert.deepEqual(startSize("table", 3), { w: 4, h: 2 });
+  assert.deepEqual(startSize("table", 6), { w: 4, h: 4 });
+  assert.deepEqual(startSize("table", 40), { w: 4, h: 4 }, "never taller than 4 to start with");
+  assert.deepEqual(startSize("status", 1), { w: 2, h: 2 });
+  assert.deepEqual(startSize("status", 3), { w: 4, h: 2 });
+});
+
+test("an app's suggestion becomes what a tile shows", () => {
+  const preset = { title: "Orders this week", source: "orders", params: { period: "week" }, fields: ["count", "trend"], view: "table" };
+  assert.deepEqual(presetContent("shop", preset), {
+    label: "Orders this week",
+    view: "table",
+    fields: [
+      { app: "shop", source: "orders", params: { period: "week" }, field: "count" },
+      { app: "shop", source: "orders", params: { period: "week" }, field: "trend" },
+    ],
+  });
+  // No params, no view: the fields carry no params and the view is left to be chosen.
+  assert.deepEqual(presetContent("shop", { title: "Orders", source: "orders", fields: ["count"] }), {
+    label: "Orders",
+    view: null,
+    fields: [{ app: "shop", source: "orders", field: "count" }],
+  });
 });
 
 // -------------------------------------------------------------------- tiles

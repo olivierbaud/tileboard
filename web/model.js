@@ -75,6 +75,50 @@ export function pickView(view, types) {
   return view;
 }
 
+/** The five views with the names people see, in the order the picker shows them. */
+export const VIEWS = [
+  ["number", "Big number"],
+  ["sparkline", "Sparkline"],
+  ["list", "List"],
+  ["table", "Table"],
+  ["status", "Status light"],
+];
+
+/** Whether a view can draw fields of these types as it is, with no falling back. */
+export function viewFits(view, types) {
+  return types.length > 0 && pickView(view, types) === view;
+}
+
+/** The view a new tile starts with, from the types of its fields. */
+export function bestView(types) {
+  if (types.length === 1) return { series: "sparkline", list: "list", status: "status" }[types[0]] ?? "number";
+  if (types.includes("list")) return "list";
+  return types.length <= 2 ? "number" : "table";
+}
+
+/** The size a new tile starts with, in grid cells. */
+export function startSize(view, fieldCount) {
+  if (view === "sparkline") return { w: 5, h: 2 };
+  if (view === "list") return { w: 3, h: 3 };
+  if (view === "table") return { w: 4, h: Math.min(4, Math.max(2, Math.ceil((fieldCount + 1) / 2))) };
+  if (view === "status") return fieldCount > 2 ? { w: 4, h: 2 } : { w: 2, h: 2 };
+  return fieldCount > 1 ? { w: 3, h: 3 } : { w: 3, h: 2 };
+}
+
+/** What a tile shows (label, view, fields), made from one of an app's presets. */
+export function presetContent(appName, preset) {
+  return {
+    label: preset.title,
+    view: preset.view ?? null,
+    fields: preset.fields.map((field) => ({
+      app: appName,
+      source: preset.source,
+      ...(preset.params && Object.keys(preset.params).length > 0 ? { params: { ...preset.params } } : {}),
+      field,
+    })),
+  };
+}
+
 /** Finds a tile's field in the catalogues: { spec } or { problem }. `apps` is Map<name, app from /api/apps>. */
 function lookUp(apps, ref) {
   const app = apps.get(ref.app);

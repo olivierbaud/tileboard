@@ -43,7 +43,7 @@ Owner's words:
 1. **`SPEC.md` + demo widget server.** DONE 2026-11-24. Contract v2 written up with examples and JSON Schema; a demo app (made-up "server health", "weather", "spending" sources with moving fake values, sparkline series, a status that flips). Push public.
 2. **Dashboard server.** DONE 2026-11-24. Reads config, fetches each app's catalogue, grouped + cached data endpoint for the browser, layout load/save, serves the static frontend. Tests against the demo app.
 3. **View mode.** DONE 2026-11-24. Tiles render in the five views, auto-refresh, stale / error state per tile.
-4. **Edit mode.** Edit button → drag + resize every tile, add-tile picker (app → source → fields → view), delete, Done saves. Drag/resize library goes through the third-party gate first (candidates: gridstack.js, or our own code).
+4. **Edit mode.** DONE 2026-11-24. Edit button → drag + resize every tile, add-tile picker (app → source → fields → view), delete, Done saves. Drag/resize library goes through the third-party gate first (candidates: gridstack.js, or our own code).
 5. **Phone layout + README + privacy check.** Stacked view under a width breakpoint; README with demo screenshots; review every committed file and the history for anything personal.
 6. **Deploy + first real app.** Home server, Tailscale only, layout in the backup. A real app adds `/widgets` in its own repo session (not from here).
 
@@ -64,3 +64,9 @@ Owner's words:
 - 2026-11-24 (Step 3): number formatting: money before the number and with cents unless whole; `%` and degrees touch the number, other units get a thin space; a list column gets one number of decimals; big standalone values are shortened (12.9K) with the full value on hover.
 - 2026-11-24 (Step 3): a first phone layout came with it (two columns, small tiles side by side). Step 5 still owns the polish.
 - 2026-11-24 (Step 3): no third-party code added. Frontend tests run on Node's built-in runner; the browser checks drive the Edge/Chrome already on the machine (`tools/`).
+- 2026-11-24 (Steps 4 to 6): the owner was away and said to go on without his decisions. Choices below marked **(mine)** were made without him and are his to overturn.
+- 2026-11-24 (Step 4, mine): drag and resize are our own code, not gridstack.js. It needs no third-party gate (which still stands), the grid is 12 fixed columns, and the page's security policy would block a library that injects styles.
+- 2026-11-24 (Step 4, mine): tiles are always packed upward, like a wall tiled from the top: a moved or resized tile takes its place and the others make room; no tile can overlap another or float over a hole. A new tile goes into the first free place.
+- 2026-11-24 (Step 4, mine): the picker lets one tile take fields from several sources, and from several apps (the plan said one app per tile for v1; the model always allowed more, and it cost nothing). Fields are ticked per source, each source with its own params; the app's presets are one-click.
+- 2026-11-24 (Step 4, mine): Done saves and locks; Cancel puts everything back. If another screen saved meanwhile, Done asks which layout to keep. Removing a tile asks nothing: Cancel is the undo.
+- 2026-11-24 (Step 4, mine): keyboard: arrow keys move the focused tile, Shift with arrows resizes, Enter changes it, Delete removes it. Under 720 px wide, tiles can be added, changed and removed but not dragged or resized.

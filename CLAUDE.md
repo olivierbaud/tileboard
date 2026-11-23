@@ -25,6 +25,7 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 - `cargo run -- --demo --web-dir web`: serve `web/` from disk, so a frontend change shows on reload (no rebuild).
 - `node --test "tests/web/*.test.js"`: the frontend's own tests (pure logic). `cargo test` runs them too when Node is installed; no package is ever installed.
 - `node tools/look.mjs [url] [folder]`: looks at a running dashboard in a headless Edge/Chrome: pictures (dark, light, phone), reads the sparkline with pointer and keyboard, reports anything sticking out of a tile and any page error. **Do this after every frontend change**, then open the pictures.
+- `node tools/try-edit.mjs [url] [folder]`: uses edit mode in a headless browser (drag, resize, keys, add, change, remove, cancel, save, save conflict) and checks what got saved. Needs a **freshly started** `--demo`.
 - Before a commit: `cargo fmt` and `cargo clippy --all-targets -- -D warnings`.
 
 ## Code map
@@ -38,9 +39,10 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 - `src/dashboard.rs`: the browser's API (`/api/apps`, `/api/data`, `/api/layout`) and the frontend routes.
 - `src/web.rs` + `web/`: the frontend files, built into the binary. A new file needs an entry in `web.rs` (a test checks it).
   - `web/app.js`: loads layout + app list, polls per app, redraws changed tiles. `web/model.js`: what each tile shows (pure). `web/format.js`: numbers, units, ages (pure). `web/views.js`: the five views, status marks, the sparkline. `web/style.css`: the look.
+  - `web/edit.js`: edit mode (drag, resize, keyboard, add, change, remove, Done / Cancel). `web/grid.js`: where tiles go when one moves (pure). `web/picker.js`: the dialog that chooses what a tile shows, built from the catalogues, with a live preview.
 - `src/rfc3339.rs`: date-time format/parse without a date crate.
 - `tests/spec.rs`: small JSON Schema checker; `tests/http.rs`: the demo app; `tests/dashboard.rs`: the dashboard against the demo app and a switchable fake app; `tests/web/`: frontend logic (Node's built-in runner), started by `tests/frontend.rs`.
-- `tools/browser.mjs` + `tools/look.mjs`: drive a headless browser over its DevTools protocol (Node only, no packages). Development only.
+- `tools/browser.mjs` + `tools/look.mjs` + `tools/try-edit.mjs`: drive a headless browser over its DevTools protocol (Node only, no packages). Development only.
 
 ## Look (keep unless Olivier changes it)
 - **A wall of tiles:** flat faces set tight, the board showing between them like grout. No shadows, no floating cards.
@@ -65,3 +67,6 @@ Runs on the owner's home server, reachable over Tailscale only. Details in `.pri
 - A full-page picture is scaled down when read back: thin lines and small marks can look grey or merged. Take an enlarged `clip` (see `shot` in `tools/browser.mjs`) before judging them.
 - CSS: `.plot > svg`, not `.plot svg`. The status marks are `svg` too, and a selector that catches every `svg` stretches them over their label.
 - A one-row tile (`h` = 1) has its own layout rules at the end of `style.css` (`@container (max-height: 120px)`). Check new view content there too.
+- `drawTile` redraws only the tile's `.face`. Edit mode's controls (`.tools`, `.grip`) are its siblings: anything put inside `.face` is wiped on the next refresh.
+- A tile's title is an `h2`, also inside the picker's preview. Dialog styles must target direct children (`.picker > h2`).
+- On a packed wall, moving a tile down by one cell changes nothing (it rises back). Dragging swaps once the tile has gone down by its own height; the arrow keys use `nudge`, which keeps going until the tile lands somewhere new.
