@@ -30,7 +30,9 @@ MUST, SHOULD and MAY are used as in RFC 2119.
 
 - **Read-only.** `GET` only. A request MUST NOT change anything in the app.
 - **JSON.** Answer `200` with `Content-Type: application/json`, UTF-8.
-- **Fast.** Answer from memory or a cache, well under 2 seconds. Do not run a slow query per request.
+- **Fast.** Answer from memory or a cache, well under 2 seconds. Do not run a slow query per request. The dashboard gives up after 5 seconds.
+- **Small.** The dashboard refuses an answer larger than 1 MB.
+- **No redirects.** The dashboard does not follow them: answer at the address itself.
 - **Base address.** The dashboard is configured with the app's base address (for example `http://app.example:8080` or `http://host.example/my-app`). Both endpoints sit under it.
 - **Only this spec.** An app MUST NOT add properties that are not in this document. A dashboard MUST ignore properties it does not know, so later additions do not break older dashboards.
 - **No CORS needed.** The dashboard server calls the app; the browser never does.
@@ -187,7 +189,7 @@ Query string: the source's params by `name`, for example `/widgets/server?host=c
 | Property | Type | Required | Meaning |
 |---|---|---|---|
 | `updated_at` | string, RFC 3339 date-time | yes | When the app last refreshed this data. Not when the request arrived. UTC (`Z`) preferred. The dashboard uses it to show stale data. |
-| `link` | string | no | Where a click on the tile goes. Either a full `http://` / `https://` address, or a path starting with one `/`, which the dashboard resolves against the app's base address. |
+| `link` | string | no | Where a click on the tile goes. Either a full `http://` / `https://` address, or a path starting with one `/`, which the dashboard puts behind the app's address: with the app at `http://host.example/my-app`, `/servers/atlas` becomes `http://host.example/my-app/servers/atlas`. Anything else is dropped. |
 | `values` | object, field id to entry | yes | One entry per field. |
 
 - Return **every field** of the source. A missing field is treated like `"value": null`.
@@ -239,6 +241,8 @@ The body SHOULD be `{ "error": "<short message for a person>" }`.
 
 On any error or timeout the dashboard keeps the last good values, marks the tile, and tries again later.
 
+A field whose entry does not fit its type is shown as "no data" with a note; the other fields of the source are not affected.
+
 ## Auth and safety
 
 - **Default: no auth.** The contract is meant for a private network (home LAN, VPN). It only exposes what the app chooses to put in its sources.
@@ -277,4 +281,6 @@ curl http://127.0.0.1:4701/widgets
 curl "http://127.0.0.1:4701/widgets/server?host=comet"
 ```
 
-The demo app has three sources of made-up data (`server`, `weather`, `spending`) that use every field type, params, thresholds in both directions and presets.
+The demo app has three sources of made-up data (`server`, `weather`, `spending`) that use every field type, params, thresholds in both directions and presets. `--demo` also starts a dashboard on `http://127.0.0.1:4700` that shows it.
+
+To check your own app, add it to `config.toml` (see `config.example.toml`) and open the dashboard: an app whose catalogue or data does not follow this document is listed with the reason.

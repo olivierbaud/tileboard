@@ -1,0 +1,50 @@
+:root {
+  color-scheme: light dark;
+  --ok: #2e7d32;
+  --crit: #c62828;
+  --line: color-mix(in srgb, currentColor 18%, transparent);
+}
+
+body {
+  font: 16px/1.5 system-ui, sans-serif;
+  max-width: 46rem;
+  margin: 2rem auto;
+  padding: 0 1rem;
+}
+
+h1 {
+  margin: 0;
+}
+
+.app {
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+}
+
+.app h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.app .state {
+  font-weight: 600;
+}
+
+.app .state.ok {
+  color: var(--ok);
+}
+
+.app .state.down {
+  color: var(--crit);
+}
+
+.app ul {
+  margin: 0.5rem 0 0;
+  padding-left: 1.2rem;
+}
+
+.muted {
+  opacity: 0.7;
+}

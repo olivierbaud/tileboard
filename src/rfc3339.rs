@@ -1,5 +1,11 @@
 //! RFC 3339 date-times (`2026-11-24T09:30:05Z`) without a date crate.
 
+/// The current time in Unix seconds.
+pub fn now() -> i64 {
+    let since_1970 = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+    since_1970.map_or(0, |since| since.as_secs() as i64)
+}
+
 /// Unix seconds to a UTC date-time string.
 pub fn format(unix: i64) -> String {
     let (y, m, d) = civil_from_days(unix.div_euclid(86_400));

@@ -8,7 +8,6 @@ use std::collections::HashMap;
 use std::f64::consts::TAU;
 use std::fmt;
 use std::sync::LazyLock;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use axum::extract::{Path, Query};
 use axum::http::StatusCode;
@@ -21,6 +20,7 @@ use crate::contract::{
     CONTRACT, Catalogue, Data, Entry, Field, FieldType, Item, Param, ParamOption, ParamType, Preset, Source, Status,
     View,
 };
+use crate::layout::{FieldRef, Layout, Tile};
 use crate::rfc3339;
 
 // ---------------------------------------------------------------- catalogue
@@ -159,6 +159,143 @@ static CATALOGUE: LazyLock<Catalogue> = LazyLock::new(|| Catalogue {
 /// The demo app's catalogue (`GET /widgets`).
 pub fn catalogue() -> &'static Catalogue {
     &CATALOGUE
+}
+
+/// The layout `--demo` starts with, so the first page is not empty.
+/// `app` is the name the demo app has in the dashboard's config.
+pub fn starter_layout(app: &str) -> Layout {
+    // (label, view, x, y, w, h, source, params, fields)
+    type Row = (
+        &'static str,
+        View,
+        u32,
+        u32,
+        u32,
+        u32,
+        &'static str,
+        &'static [(&'static str, &'static str)],
+        &'static [&'static str],
+    );
+    const ROWS: &[Row] = &[
+        ("CPU", View::Number, 0, 0, 3, 2, "server", &[], &["cpu"]),
+        (
+            "CPU history",
+            View::Sparkline,
+            3,
+            0,
+            5,
+            2,
+            "server",
+            &[],
+            &["cpu_history"],
+        ),
+        ("Last backup", View::Status, 8, 0, 2, 2, "server", &[], &["backup"]),
+        (
+            "Comet CPU",
+            View::Number,
+            10,
+            0,
+            2,
+            2,
+            "server",
+            &[("host", "comet")],
+            &["cpu"],
+        ),
+        (
+            "Atlas",
+            View::Table,
+            0,
+            2,
+            4,
+            3,
+            "server",
+            &[],
+            &["cpu", "memory", "disk_free", "uptime"],
+        ),
+        ("Services", View::List, 4, 2, 3, 3, "server", &[], &["services"]),
+        (
+            "Northaven",
+            View::Number,
+            7,
+            2,
+            2,
+            3,
+            "weather",
+            &[],
+            &["temp", "condition"],
+        ),
+        (
+            "Temperature, last 24 h",
+            View::Sparkline,
+            9,
+            2,
+            3,
+            3,
+            "weather",
+            &[],
+            &["temp_24h"],
+        ),
+        (
+            "This week",
+            View::Number,
+            0,
+            5,
+            4,
+            2,
+            "spending",
+            &[],
+            &["total", "budget_left"],
+        ),
+        (
+            "Spent per day",
+            View::Sparkline,
+            4,
+            5,
+            4,
+            2,
+            "spending",
+            &[],
+            &["daily"],
+        ),
+        (
+            "Top categories",
+            View::List,
+            8,
+            5,
+            4,
+            3,
+            "spending",
+            &[],
+            &["top_categories"],
+        ),
+    ];
+
+    let tiles = ROWS
+        .iter()
+        .enumerate()
+        .map(|(i, &(label, view, x, y, w, h, source, params, fields))| Tile {
+            id: format!("demo-{}", i + 1),
+            label: label.to_string(),
+            view,
+            x,
+            y,
+            w,
+            h,
+            fields: fields
+                .iter()
+                .map(|field| FieldRef {
+                    app: app.to_string(),
+                    source: source.to_string(),
+                    params: params
+                        .iter()
+                        .map(|(name, value)| (name.to_string(), value.to_string()))
+                        .collect(),
+                    field: field.to_string(),
+                })
+                .collect(),
+        })
+        .collect();
+    Layout { rev: 0, tiles }
 }
 
 /// A choice param. The first option is the default.
@@ -592,10 +729,7 @@ async fn get_catalogue() -> Json<&'static Catalogue> {
 }
 
 async fn get_data(Path(source): Path<String>, Query(query): Query<HashMap<String, String>>) -> Response {
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |since| since.as_secs() as i64);
-    match data(&source, &query, now) {
+    match data(&source, &query, rfc3339::now()) {
         Ok(data) => Json(data).into_response(),
         Err(e) => error(e.status(), e.to_string()),
     }
@@ -950,5 +1084,47 @@ mod tests {
             escape(r#"<a href="x">Tom & Jerry</a>"#),
             "&lt;a href=&quot;x&quot;&gt;Tom &amp; Jerry&lt;/a&gt;"
         );
+    }
+
+    #[test]
+    fn the_starter_layout_only_uses_what_the_catalogue_has() {
+        let layout = starter_layout("demo");
+        assert_eq!(layout.problems(), NO_PROBLEMS);
+        assert_eq!(layout.rev, 0);
+        for tile in &layout.tiles {
+            for field in &tile.fields {
+                assert_eq!(field.app, "demo");
+                let source = catalogue().source(&field.source).expect("a source of the demo app");
+                assert!(
+                    source.field(&field.field).is_some(),
+                    "{}: {}.{}",
+                    tile.label,
+                    field.source,
+                    field.field
+                );
+                for (name, value) in &field.params {
+                    assert!(
+                        source.param(name).expect("a param of the source").accepts(value),
+                        "{name}={value}"
+                    );
+                }
+            }
+        }
+        // Every view and every source of the demo app is on show.
+        let views: HashSet<String> = layout.tiles.iter().map(|tile| format!("{:?}", tile.view)).collect();
+        assert_eq!(views.len(), 5);
+        let sources: HashSet<&str> = layout.tiles.iter().map(|tile| tile.fields[0].source.as_str()).collect();
+        assert_eq!(sources.len(), catalogue().sources.len());
+    }
+
+    #[test]
+    fn starter_tiles_do_not_overlap() {
+        let tiles = starter_layout("demo").tiles;
+        for (i, a) in tiles.iter().enumerate() {
+            for b in &tiles[i + 1..] {
+                let apart = a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y;
+                assert!(apart, "{} and {} overlap", a.label, b.label);
+            }
+        }
     }
 }

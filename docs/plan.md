@@ -32,13 +32,16 @@ Owner's words:
 
 ## Dashboard model
 - **Tile** = `{id, fields: [{app, source, params, field}], view, label, x, y, w, h}`. View: big number · list · sparkline · table · status light. One field or many; same app or field in any number of tiles. The model allows mixing apps in one tile; the v1 picker keeps one app per tile.
-- **One call per source, not per tile:** the server groups tiles by (app, source, params) and caches per `refresh_s`. The browser only ever talks to the dashboard server (tokens stay server-side, no CORS).
-- **Config (git-ignored):** the list of apps (`name`, `base_url`, optional token). Example file with demo values is committed.
-- **Layout:** stored server-side (JSON file or SQLite; the repo session decides and says why), git-ignored.
+- **One call per source, not per tile:** the browser names the (app, source, params) it needs in one `POST /api/data`; the server keeps each answer for `refresh_s`, so any number of tiles and browsers cost one call. The browser only ever talks to the dashboard server (tokens stay server-side, no CORS).
+- **The server does the contract work:** it checks every entry against the catalogue, works out each value's status (thresholds) and turns `link` into a full address. The frontend only draws.
+- **Config (git-ignored `config.toml`):** `listen`, `layout` path, and the list of apps (`name`, `base_url`, optional `public_url` for links, optional `token`). `config.example.toml` with demo values is committed. A tile's `app` is the config `name`.
+- **Layout:** one JSON file (`layout.json`, git-ignored), saved whole. Why not SQLite: it is one small document with nothing to query, a file needs no extra crate, and the backup is copying it. A `rev` number refuses a save that started from an older layout (two browsers open).
+- **Grid:** 12 columns; `x`, `w` in columns, `y`, `h` in rows.
+- **Browser API:** `GET /api/apps` (catalogues + reachable or not), `POST /api/data`, `GET` / `PUT /api/layout`.
 
 ## Steps (deliverables in order)
 1. **`SPEC.md` + demo widget server.** DONE 2026-11-24. Contract v2 written up with examples and JSON Schema; a demo app (made-up "server health", "weather", "spending" sources with moving fake values, sparkline series, a status that flips). Push public.
-2. **Dashboard server.** Reads config, fetches each app's catalogue, grouped + cached data endpoint for the browser, layout load/save, serves the static frontend. Tests against the demo app.
+2. **Dashboard server.** DONE 2026-11-24. Reads config, fetches each app's catalogue, grouped + cached data endpoint for the browser, layout load/save, serves the static frontend. Tests against the demo app.
 3. **View mode.** Tiles render in the five views, auto-refresh, stale / error state per tile.
 4. **Edit mode.** Edit button → drag + resize every tile, add-tile picker (app → source → fields → view), delete, Done saves. Drag/resize library goes through the third-party gate first (candidates: gridstack.js, or our own code).
 5. **Phone layout + README + privacy check.** Stacked view under a width breakpoint; README with demo screenshots; review every committed file and the history for anything personal.
@@ -50,3 +53,7 @@ Owner's words:
 - 2026-11-24 (Step 1): crates approved by the owner: `tokio`, `axum` (tokio-rs), `serde`, `serde_json` (serde-rs); axum with only `http1`, `json`, `query`, `tokio`. No date, random, regex or CLI crate: those few lines are our own code.
 - 2026-11-24 (Step 1): spec details decided while writing it: a required `"contract": 2` marker; schemas are strict (an unknown property is an error) while dashboards ignore unknown properties; number formatting and unit placement are the dashboard's job (apps send rounded numbers); presets take fields from one source.
 - 2026-11-24 (Step 1): the demo app is stateless (every value is a function of the clock) and listens on `127.0.0.1:4701` by default.
+- 2026-11-24 (Step 2): crates approved by the owner: `hyper-util` + `http-body-util` (hyperium) as the HTTP client, **plain `http://` only** (chosen over reqwest + rustls: 6 extra crates instead of 94); `toml` (toml-rs) for the config file. Calling `https://` apps later means a TLS crate and a new gate question.
+- 2026-11-24 (Step 2): layout in a JSON file, not SQLite (reasons in "Dashboard model"). 12-column grid. `--demo` = dashboard + demo app + starter layout, nothing saved; `--demo-app` runs the demo app next to a real config.
+- 2026-11-24 (Step 2): the frontend files are built into the binary (one file to deploy); the page is served with a strict Content-Security-Policy.
+- 2026-11-24 (Step 2): limits: an app gets 5 s and 1 MB per answer, redirects are not followed, a failed call is retried after 15 s at most, a good catalogue is re-read every 5 minutes (or on `?refresh=1`).

@@ -1,0 +1,23 @@
+# tileboard config. Copy this file to config.toml (which git ignores) and edit it.
+# Everything here is made up: the only app is the demo app (`tileboard --demo-app`).
+
+# Where the dashboard listens. Keep it on a private network: the dashboard has no login.
+listen = "127.0.0.1:4700"
+
+# Where the layout (your tiles) is saved. A relative path starts from this file's folder.
+layout = "layout.json"
+
+# One [[apps]] block per app.
+[[apps]]
+# Your name for the app. Tiles refer to it, so do not rename it later.
+# Lowercase letters, digits, _ and -.
+name = "demo"
+
+# Where the dashboard server reaches the app. http:// only for now.
+base_url = "http://127.0.0.1:4701"
+
+# Where your browser reaches the app, for the links on tiles. Leave out if it is the same as base_url.
+# public_url = "https://demo.example"
+
+# Only if the app asks for a token.
+# token = "paste-the-app-token-here"

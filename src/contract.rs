@@ -12,6 +12,41 @@ use crate::rfc3339;
 /// The contract version this code speaks.
 pub const CONTRACT: u32 = 2;
 
+/// Writing numbers: a whole number goes out as `7`, not `7.0`.
+pub(crate) mod plain {
+    use serde::{Serialize, Serializer};
+
+    /// Past this, a float no longer holds every whole number exactly.
+    const EXACT: f64 = 9_007_199_254_740_992.0;
+
+    pub fn number<S: Serializer>(n: &f64, serializer: S) -> Result<S::Ok, S::Error> {
+        if n.fract() == 0.0 && n.abs() < EXACT {
+            serializer.serialize_i64(*n as i64)
+        } else {
+            serializer.serialize_f64(*n)
+        }
+    }
+
+    struct Plain(f64);
+
+    impl Serialize for Plain {
+        fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+            number(&self.0, serializer)
+        }
+    }
+
+    pub fn option<S: Serializer>(n: &Option<f64>, serializer: S) -> Result<S::Ok, S::Error> {
+        n.map(Plain).serialize(serializer)
+    }
+
+    pub fn series<S: Serializer>(series: &Option<Vec<Option<f64>>>, serializer: S) -> Result<S::Ok, S::Error> {
+        match series {
+            None => serializer.serialize_none(),
+            Some(points) => serializer.collect_seq(points.iter().map(|point| point.map(Plain))),
+        }
+    }
+}
+
 /// The answer to `GET /widgets`: what data an app has.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Catalogue {
@@ -71,9 +106,9 @@ pub struct Field {
     pub kind: FieldType,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unit: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "plain::option")]
     pub warn: Option<f64>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "plain::option")]
     pub crit: Option<f64>,
 }
 
@@ -163,7 +198,7 @@ pub struct Entry {
     pub value: Value,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub status: Option<Status>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none", serialize_with = "plain::series")]
     pub series: Option<Vec<Option<f64>>>,
 }
 
@@ -174,7 +209,7 @@ pub struct Entry {
 pub enum Value {
     /// No data right now.
     Null,
-    Number(f64),
+    Number(#[serde(serialize_with = "plain::number")] f64),
     Text(String),
     List(Vec<Item>),
 }
@@ -192,7 +227,7 @@ pub struct Item {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ItemValue {
-    Number(f64),
+    Number(#[serde(serialize_with = "plain::number")] f64),
     Text(String),
 }
 
@@ -876,5 +911,36 @@ mod tests {
             ])),
             r#"{"value":[{"label":"mail","value":"restarting","status":"warn"}]}"#
         );
+    }
+
+    #[test]
+    fn whole_numbers_are_written_without_a_decimal_point() {
+        let json = |entry: Entry| serde_json::to_string(&entry).unwrap();
+        assert_eq!(json(Entry::number(65.0)), r#"{"value":65}"#);
+        assert_eq!(json(Entry::number(-3.0)), r#"{"value":-3}"#);
+        assert_eq!(json(Entry::number(-0.0)), r#"{"value":0}"#);
+        assert_eq!(json(Entry::number(0.5)), r#"{"value":0.5}"#);
+        // Too big to be written as a whole number: still a number, and it reads back the same.
+        let huge = json(Entry::number(1e300));
+        assert_eq!(serde_json::from_str::<Entry>(&huge).unwrap(), Entry::number(1e300));
+        assert_eq!(json(Entry::series(vec![1.0, 2.5])), r#"{"value":2.5,"series":[1,2.5]}"#);
+        assert_eq!(
+            json(Entry {
+                value: Value::Null,
+                status: None,
+                series: Some(vec![Some(1.0), None])
+            }),
+            r#"{"value":null,"series":[1,null]}"#
+        );
+        assert_eq!(
+            json(Entry::list(vec![Item::new("a").number(2.0)])),
+            r#"{"value":[{"label":"a","value":2}]}"#
+        );
+
+        let cpu = field(FieldType::Number, Some(75.0), Some(92.5));
+        let written = serde_json::to_string(&cpu).unwrap();
+        assert!(written.ends_with(r#""warn":75,"crit":92.5}"#), "{written}");
+        // And they read back as the same numbers.
+        assert_eq!(serde_json::from_str::<Field>(&written).unwrap(), cpu);
     }
 }
