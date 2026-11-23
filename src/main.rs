@@ -64,10 +64,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Command, String>
     let mut args = args.into_iter();
     while let Some(arg) = args.next() {
         let mut value = |example: &str| args.next().ok_or(format!("{arg} needs a value, for example {example}"));
-        let address = |text: String| {
-            text.parse()
-                .map_err(|_| format!("{arg}: {text:?} is not an ip:port address"))
-        };
+        let address = |text: String| text.parse().map_err(|_| format!("{arg}: {text:?} is not an ip:port address"));
         match arg.as_str() {
             "-h" | "--help" => return Ok(Command::Help),
             "-V" | "--version" => return Ok(Command::Version),
@@ -118,10 +115,7 @@ async fn main() -> ExitCode {
 
 async fn run(options: Options) -> Result<(), String> {
     let mut config = if options.demo {
-        Config::demo(
-            DEFAULT_LISTEN.parse().expect("the default address is valid"),
-            options.demo_addr,
-        )
+        Config::demo(DEFAULT_LISTEN.parse().expect("the default address is valid"), options.demo_addr)
     } else {
         Config::load(&options.config).map_err(|problem| {
             format!("{problem}\n\nCopy config.example.toml to config.toml and edit it, or try `tileboard --demo`.")
@@ -131,35 +125,19 @@ async fn run(options: Options) -> Result<(), String> {
         config.listen = listen;
     }
 
-    let starter = if options.demo {
-        demo::starter_layout(&config.apps[0].name)
-    } else {
-        Layout::default()
-    };
+    let starter = if options.demo { demo::starter_layout(&config.apps[0].name) } else { Layout::default() };
     let layout = LayoutStore::open(config.layout.clone(), starter)?;
     let web = options.web_dir.map_or_else(Web::built_in, Web::from_dir);
 
     let listen = |addr: SocketAddr| async move {
-        tokio::net::TcpListener::bind(addr)
-            .await
-            .map_err(|e| format!("cannot listen on {addr}: {e}"))
+        tokio::net::TcpListener::bind(addr).await.map_err(|e| format!("cannot listen on {addr}: {e}"))
     };
     let dashboard_listener = listen(config.listen).await?;
-    let demo_listener = if options.demo_app {
-        Some(listen(options.demo_addr).await?)
-    } else {
-        None
-    };
+    let demo_listener = if options.demo_app { Some(listen(options.demo_addr).await?) } else { None };
 
-    println!(
-        "Dashboard: http://{}",
-        dashboard_listener.local_addr().unwrap_or(config.listen)
-    );
+    println!("Dashboard: http://{}", dashboard_listener.local_addr().unwrap_or(config.listen));
     if let Some(listener) = &demo_listener {
-        println!(
-            "Demo app (made-up data): http://{}/widgets",
-            listener.local_addr().unwrap_or(options.demo_addr)
-        );
+        println!("Demo app (made-up data): http://{}/widgets", listener.local_addr().unwrap_or(options.demo_addr));
     }
     for app in &config.apps {
         println!("App {}: {}", app.name, app.base_url);
@@ -169,18 +147,11 @@ async fn run(options: Options) -> Result<(), String> {
         None => println!("Layout: kept in memory, not saved"),
     }
     if !config.listen.ip().is_loopback() {
-        println!(
-            "The dashboard has no login. Keep {} on a private network.",
-            config.listen
-        );
+        println!("The dashboard has no login. Keep {} on a private network.", config.listen);
     }
     println!("Stop with Ctrl+C.");
 
-    let dashboard = Arc::new(Dashboard {
-        hub: Hub::new(config.apps),
-        layout,
-        web,
-    });
+    let dashboard = Arc::new(Dashboard { hub: Hub::new(config.apps), layout, web });
     let dashboard = dashboard::serve(dashboard_listener, dashboard);
     let stopped = match demo_listener {
         Some(listener) => tokio::select! {
@@ -224,13 +195,8 @@ mod tests {
 
     #[test]
     fn the_demo_app_can_run_next_to_a_real_config() {
-        let options = options(&[
-            "--config",
-            "/etc/tileboard/config.toml",
-            "--demo-app",
-            "--demo-addr",
-            "127.0.0.1:9000",
-        ]);
+        let options =
+            options(&["--config", "/etc/tileboard/config.toml", "--demo-app", "--demo-addr", "127.0.0.1:9000"]);
         assert!(options.demo_app && !options.demo);
         assert_eq!(options.config, PathBuf::from("/etc/tileboard/config.toml"));
         assert_eq!(options.demo_addr, "127.0.0.1:9000".parse().unwrap());
@@ -253,26 +219,10 @@ mod tests {
 
     #[test]
     fn mistakes_are_explained() {
-        assert!(
-            parse(&["--port", "1"])
-                .unwrap_err()
-                .contains("unknown argument \"--port\"")
-        );
-        assert!(
-            parse(&["--demo", "--demo-addr"])
-                .unwrap_err()
-                .contains("--demo-addr needs a value")
-        );
-        assert!(
-            parse(&["--listen", "localhost"])
-                .unwrap_err()
-                .contains("--listen: \"localhost\" is not an ip:port")
-        );
+        assert!(parse(&["--port", "1"]).unwrap_err().contains("unknown argument \"--port\""));
+        assert!(parse(&["--demo", "--demo-addr"]).unwrap_err().contains("--demo-addr needs a value"));
+        assert!(parse(&["--listen", "localhost"]).unwrap_err().contains("--listen: \"localhost\" is not an ip:port"));
         assert!(parse(&["--config"]).unwrap_err().contains("--config needs a value"));
-        assert!(
-            parse(&["--demo", "--config", "x.toml"])
-                .unwrap_err()
-                .contains("--demo brings its own config")
-        );
+        assert!(parse(&["--demo", "--config", "x.toml"]).unwrap_err().contains("--demo brings its own config"));
     }
 }

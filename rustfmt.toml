@@ -1,1 +1,3 @@
 max_width = 120
+# Let a line use the whole width before it is broken up: tables of test cases stay tables.
+use_small_heuristics = "Max"

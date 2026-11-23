@@ -96,15 +96,9 @@ impl Config {
         let mut names = HashSet::new();
         let mut apps = Vec::new();
         for (i, app) in raw.apps.into_iter().enumerate() {
-            let at = if is_id(&app.name) {
-                format!("app {:?}", app.name)
-            } else {
-                format!("app number {}", i + 1)
-            };
+            let at = if is_id(&app.name) { format!("app {:?}", app.name) } else { format!("app number {}", i + 1) };
             if !is_id(&app.name) {
-                problems.push(format!(
-                    "{at}: name must be lowercase letters, digits, _ or -, at most 64 long"
-                ));
+                problems.push(format!("{at}: name must be lowercase letters, digits, _ or -, at most 64 long"));
             } else if !names.insert(app.name.clone()) {
                 problems.push(format!("{at}: the name is used twice"));
             }
@@ -114,30 +108,19 @@ impl Config {
                 Some(url) => check_url(url, true).map_err(|p| problems.push(format!("{at}: public_url {p}"))),
                 None => base_url.clone(),
             };
-            let token_ok = app
-                .token
-                .as_deref()
-                .is_none_or(|t| !t.is_empty() && t.bytes().all(|b| b.is_ascii_graphic()));
+            let token_ok =
+                app.token.as_deref().is_none_or(|t| !t.is_empty() && t.bytes().all(|b| b.is_ascii_graphic()));
             if !token_ok {
                 problems.push(format!("{at}: token must be visible characters with no spaces"));
             }
 
             if let (Ok(base_url), Ok(public_url)) = (base_url, public_url) {
-                apps.push(AppConfig {
-                    name: app.name,
-                    base_url,
-                    public_url,
-                    token: app.token.map(Token),
-                });
+                apps.push(AppConfig { name: app.name, base_url, public_url, token: app.token.map(Token) });
             }
         }
 
         match listen {
-            Some(listen) if problems.is_empty() => Ok(Config {
-                listen,
-                layout: Some(dir.join(layout)),
-                apps,
-            }),
+            Some(listen) if problems.is_empty() => Ok(Config { listen, layout: Some(dir.join(layout)), apps }),
             _ => Err(problems.join("\n")),
         }
     }
@@ -145,23 +128,10 @@ impl Config {
     /// The built-in config of `--demo`: one app, the demo app, and a layout that is not saved.
     pub fn demo(listen: SocketAddr, demo_app: SocketAddr) -> Config {
         // "Every address" is where the demo app listens, not an address to call.
-        let ip = if demo_app.ip().is_unspecified() {
-            IpAddr::V4(Ipv4Addr::LOCALHOST)
-        } else {
-            demo_app.ip()
-        };
+        let ip = if demo_app.ip().is_unspecified() { IpAddr::V4(Ipv4Addr::LOCALHOST) } else { demo_app.ip() };
         let url = format!("http://{}", SocketAddr::new(ip, demo_app.port()));
-        let demo = AppConfig {
-            name: "demo".to_string(),
-            base_url: url.clone(),
-            public_url: url,
-            token: None,
-        };
-        Config {
-            listen,
-            layout: None,
-            apps: vec![demo],
-        }
+        let demo = AppConfig { name: "demo".to_string(), base_url: url.clone(), public_url: url, token: None };
+        Config { listen, layout: None, apps: vec![demo] }
     }
 }
 
@@ -214,10 +184,7 @@ mod tests {
         assert_eq!(config.layout, Some(PathBuf::from("/etc/tileboard").join("layout.json")));
         assert_eq!(config.apps.len(), 1);
         let demo = &config.apps[0];
-        assert_eq!(
-            (demo.name.as_str(), demo.base_url.as_str()),
-            ("demo", "http://127.0.0.1:4701")
-        );
+        assert_eq!((demo.name.as_str(), demo.base_url.as_str()), ("demo", "http://127.0.0.1:4701"));
         assert_eq!(demo.public_url, demo.base_url);
         assert_eq!(demo.token, None);
     }
@@ -242,10 +209,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(config.listen, "0.0.0.0:8080".parse().unwrap());
-        assert_eq!(
-            config.layout,
-            Some(PathBuf::from("/etc/tileboard").join("data/tiles.json"))
-        );
+        assert_eq!(config.layout, Some(PathBuf::from("/etc/tileboard").join("data/tiles.json")));
         let shop = &config.apps[0];
         assert_eq!(shop.base_url, "http://127.0.0.1:9000/shop");
         assert_eq!(shop.public_url, "https://shop.example");
@@ -271,49 +235,25 @@ mod tests {
     #[test]
     fn mistakes_are_explained() {
         let cases = [
-            (
-                "listen = \"localhost\"",
-                "listen: \"localhost\" is not an ip:port address",
-            ),
+            ("listen = \"localhost\"", "listen: \"localhost\" is not an ip:port address"),
             ("layout = \"\"", "layout: the path is empty"),
             ("port = 4700", "unknown field `port`"),
             ("[[apps]]\nname = \"demo\"", "missing field `base_url`"),
-            (
-                "[[apps]]\nname = \"demo\"\nbase_url = \"http://a.example\"\nurl = \"x\"",
-                "unknown field `url`",
-            ),
-            (
-                "[[apps]]\nname = \"My App\"\nbase_url = \"http://a.example\"",
-                "app number 1: name must be",
-            ),
+            ("[[apps]]\nname = \"demo\"\nbase_url = \"http://a.example\"\nurl = \"x\"", "unknown field `url`"),
+            ("[[apps]]\nname = \"My App\"\nbase_url = \"http://a.example\"", "app number 1: name must be"),
             (
                 "[[apps]]\nname = \"demo\"\nbase_url = \"a.example:80\"",
                 "app \"demo\": base_url must start with http://",
             ),
-            (
-                "[[apps]]\nname = \"demo\"\nbase_url = \"ftp://a.example\"",
-                "base_url must start with http://",
-            ),
-            (
-                "[[apps]]\nname = \"demo\"\nbase_url = \"https://a.example\"",
-                "cannot call yet",
-            ),
+            ("[[apps]]\nname = \"demo\"\nbase_url = \"ftp://a.example\"", "base_url must start with http://"),
+            ("[[apps]]\nname = \"demo\"\nbase_url = \"https://a.example\"", "cannot call yet"),
             (
                 "[[apps]]\nname = \"demo\"\nbase_url = \"http://me:pw@a.example\"",
                 "must not hold a user name or password",
             ),
-            (
-                "[[apps]]\nname = \"demo\"\nbase_url = \"http://a.example/?x=1\"",
-                "must not have a query or a fragment",
-            ),
-            (
-                "[[apps]]\nname = \"demo\"\nbase_url = \"http://a b\"",
-                "base_url is not a valid address",
-            ),
-            (
-                "[[apps]]\nname = \"demo\"\nbase_url = \"http://\"",
-                "base_url is not a valid address",
-            ),
+            ("[[apps]]\nname = \"demo\"\nbase_url = \"http://a.example/?x=1\"", "must not have a query or a fragment"),
+            ("[[apps]]\nname = \"demo\"\nbase_url = \"http://a b\"", "base_url is not a valid address"),
+            ("[[apps]]\nname = \"demo\"\nbase_url = \"http://\"", "base_url is not a valid address"),
             (
                 "[[apps]]\nname = \"demo\"\nbase_url = \"http://a.example\"\npublic_url = \"mailto:me\"",
                 "public_url must start with http:// or https://",
@@ -329,10 +269,7 @@ mod tests {
         ];
         for (text, expected) in cases {
             let found = problem(text);
-            assert!(
-                found.contains(expected),
-                "for {text:?}: expected {expected:?} in {found:?}"
-            );
+            assert!(found.contains(expected), "for {text:?}: expected {expected:?} in {found:?}");
         }
     }
 

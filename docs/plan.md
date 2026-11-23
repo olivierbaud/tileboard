@@ -42,7 +42,7 @@ Owner's words:
 ## Steps (deliverables in order)
 1. **`SPEC.md` + demo widget server.** DONE 2026-11-24. Contract v2 written up with examples and JSON Schema; a demo app (made-up "server health", "weather", "spending" sources with moving fake values, sparkline series, a status that flips). Push public.
 2. **Dashboard server.** DONE 2026-11-24. Reads config, fetches each app's catalogue, grouped + cached data endpoint for the browser, layout load/save, serves the static frontend. Tests against the demo app.
-3. **View mode.** Tiles render in the five views, auto-refresh, stale / error state per tile.
+3. **View mode.** DONE 2026-11-24. Tiles render in the five views, auto-refresh, stale / error state per tile.
 4. **Edit mode.** Edit button → drag + resize every tile, add-tile picker (app → source → fields → view), delete, Done saves. Drag/resize library goes through the third-party gate first (candidates: gridstack.js, or our own code).
 5. **Phone layout + README + privacy check.** Stacked view under a width breakpoint; README with demo screenshots; review every committed file and the history for anything personal.
 6. **Deploy + first real app.** Home server, Tailscale only, layout in the backup. A real app adds `/widgets` in its own repo session (not from here).
@@ -57,3 +57,10 @@ Owner's words:
 - 2026-11-24 (Step 2): layout in a JSON file, not SQLite (reasons in "Dashboard model"). 12-column grid. `--demo` = dashboard + demo app + starter layout, nothing saved; `--demo-app` runs the demo app next to a real config.
 - 2026-11-24 (Step 2): the frontend files are built into the binary (one file to deploy); the page is served with a strict Content-Security-Policy.
 - 2026-11-24 (Step 2): limits: an app gets 5 s and 1 MB per answer, redirects are not followed, a failed call is retried after 15 s at most, a good catalogue is re-read every 5 minutes (or on `?refresh=1`).
+- 2026-11-24 (Step 3): the look: a wall of flat tiles with grout gaps, one typeface, ink numbers, status as shape + word + colour (details in `CLAUDE.md`, "Look"). Light and dark follow the system.
+- 2026-11-24 (Step 3): what counts as old: a tile is marked "Not updating" when the last call to its app failed (last good values stay, dimmed), and "Old data" when the app has missed three refreshes plus 30 s.
+- 2026-11-24 (Step 3): the page asks per app (a slow app does not hold the others), as often as the app's fastest source on screen (2 s to 60 s), and stops while the tab is hidden. It draws the board from the layout at once and fills in as answers arrive.
+- 2026-11-24 (Step 3): server change found by looking at a dead app: after a failed call the hub answers at once from what it has kept and retries in the background. Before, every page load waited for the dead app.
+- 2026-11-24 (Step 3): number formatting: money before the number and with cents unless whole; `%` and degrees touch the number, other units get a thin space; a list column gets one number of decimals; big standalone values are shortened (12.9K) with the full value on hover.
+- 2026-11-24 (Step 3): a first phone layout came with it (two columns, small tiles side by side). Step 5 still owns the polish.
+- 2026-11-24 (Step 3): no third-party code added. Frontend tests run on Node's built-in runner; the browser checks drive the Edge/Chrome already on the machine (`tools/`).

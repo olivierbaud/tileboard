@@ -1,50 +1,677 @@
+/*
+  A wall of tiles: flat faces set tight, the board showing between them like grout.
+  No shadows, no floating cards. The data is the only loud thing.
+
+  Colour does three jobs and no more:
+  - ink (three steps) for every word and number;
+  - one blue for the line of a chart;
+  - green / amber / red for status, always together with a shape and a word.
+*/
+
 :root {
   color-scheme: light dark;
-  --ok: #2e7d32;
-  --crit: #c62828;
-  --line: color-mix(in srgb, currentColor 18%, transparent);
+
+  --grout: #cbd3d7;
+  --tile: #fcfcfb;
+  --ink: #10181d;
+  --ink-2: #4a545b;
+  --ink-3: #7b858b;
+  --hairline: #e3e6e5;
+
+  --series: #2a78d6;
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+
+  --row: 76px;
+  --gap: 6px;
+
+  /* One typeface for everything. Bahnschrift (DIN lettering, the look of signs and
+     instrument panels) where the system has it; the system's own sans elsewhere. */
+  --font: Bahnschrift, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --grout: #07090b;
+    --tile: #171c20;
+    --ink: #eef2f4;
+    --ink-2: #b7c0c6;
+    --ink-3: #7b858b;
+    --hairline: #272e33;
+    --series: #3987e5;
+  }
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
-  font: 16px/1.5 system-ui, sans-serif;
-  max-width: 46rem;
-  margin: 2rem auto;
-  padding: 0 1rem;
-}
-
-h1 {
   margin: 0;
+  background: var(--grout);
+  color: var(--ink);
+  font: 15px/1.35 var(--font);
+  -webkit-text-size-adjust: 100%;
 }
 
-.app {
-  border: 1px solid var(--line);
-  border-radius: 0.5rem;
-  padding: 0.75rem 1rem;
-  margin: 1rem 0;
+:focus-visible {
+  outline: 2px solid var(--series);
+  outline-offset: 2px;
 }
 
-.app h2 {
+/* Words for screen readers only, next to a mark that says the same to the eye. */
+.unseen {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ bar */
+
+.bar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px calc(var(--gap) + 12px) 8px;
+}
+
+.name {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
 }
 
-.app .state {
+.status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ---------------------------------------------------------------- board */
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: var(--row);
+  gap: var(--gap);
+  padding: 0 var(--gap) var(--gap);
+}
+
+.tile {
+  grid-column: calc(var(--x) + 1) / span var(--w);
+  grid-row: calc(var(--y) + 1) / span var(--h);
+  container-type: size;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 10px 12px 11px 14px;
+  overflow: hidden;
+  background: var(--tile);
+  border-radius: 2px;
+}
+
+/* A tile with a warning or a critical value carries a strip on its edge,
+   so trouble shows from across the room. The mark and the word are inside. */
+.tile[data-status="warn"]::before,
+.tile[data-status="crit"]::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  background: var(--warning);
+}
+
+.tile[data-status="crit"]::before {
+  background: var(--critical);
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 1.3em;
+}
+
+.title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: 0.9rem;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.title a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.title a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.note {
+  flex: none;
+  margin: 0;
+  color: var(--ink);
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
-.app .state.ok {
-  color: var(--ok);
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.app .state.down {
-  color: var(--crit);
+/* Old values stay in place, dimmed: nothing jumps, and it is plain they are not current. */
+.tile[data-state="stale"] .body,
+.tile[data-state="waiting"] .body,
+.disconnected .tile .body {
+  opacity: 0.45;
 }
 
-.app ul {
-  margin: 0.5rem 0 0;
-  padding-left: 1.2rem;
+.problem {
+  margin: auto 0 0;
+  color: var(--ink-2);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
 }
 
-.muted {
-  opacity: 0.7;
+.quiet {
+  margin: auto 0;
+  color: var(--ink-3);
+  font-size: 0.85rem;
+}
+
+/* --------------------------------------------------------------- status */
+
+.icon {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  font-size: 15px;
+}
+
+.icon .fill {
+  stroke-width: 1.4;
+  stroke-linejoin: round;
+}
+
+.icon-ok .fill {
+  fill: var(--good);
+  stroke: var(--good);
+}
+
+.icon-warn .fill {
+  fill: var(--warning);
+  stroke: var(--warning);
+}
+
+.icon-crit .fill {
+  fill: var(--critical);
+  stroke: var(--critical);
+}
+
+.icon .mark {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* On amber the mark is near-black: white does not read on it. */
+.icon-warn .mark {
+  stroke: #0b0b0b;
+}
+
+.icon .ring {
+  fill: none;
+  stroke: var(--ink-3);
+  stroke-width: 1.5;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--ink-2);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.chip[data-status="warn"],
+.chip[data-status="crit"] {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------- figures */
+
+/* The value sits at the foot of the tile, so a row of tiles reads along one line. */
+.figures {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: auto;
+  min-height: 0;
+}
+
+/* Sized from the tile: as tall as the tile allows, as wide as its characters allow. */
+.figure {
+  font-size: clamp(1.35rem, min(40cqh, calc(150cqw / var(--chars, 4))), 6.5rem);
+  font-weight: 600;
+  font-stretch: 92%;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.figure .unit {
+  margin-left: 0.06em;
+  color: var(--ink-2);
+  font-size: 0.5em;
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.figure .unit.before {
+  margin: 0 0.05em 0 0;
+}
+
+.figure.words {
+  font-size: clamp(1.05rem, min(24cqh, calc(170cqw / var(--chars, 8))), 2.6rem);
+  line-height: 1.1;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.figure.empty {
+  color: var(--ink-3);
+}
+
+.figure.small {
+  font-size: clamp(1.2rem, min(22cqh, calc(60cqw / var(--chars, 4))), 2.4rem);
+}
+
+.caption {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 0.82rem;
+}
+
+/* ----------------------------------------------------------------- rows */
+
+.rows {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.rows.fill {
+  flex: 1;
+  min-height: 0;
+  margin-top: 6px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.row .label {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.row .value {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.row.quiet {
+  color: var(--ink-3);
+}
+
+.group {
+  padding: 8px 0 2px;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------- lights */
+
+.lights {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 20px;
+  margin-top: auto;
+}
+
+.light {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 4cqw, 14px);
+  min-width: 0;
+}
+
+.light .icon {
+  font-size: clamp(26px, min(38cqh, 30cqw), 76px);
+}
+
+.light .words {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.light strong {
+  font-size: clamp(1rem, min(17cqh, 13cqw), 1.9rem);
+  font-weight: 600;
+}
+
+.light span {
+  color: var(--ink-2);
+  font-size: 0.82rem;
+}
+
+/* ---------------------------------------------------------------- trend */
+
+.trend {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.trend-top {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.spark {
+  display: flex;
+  flex: 1;
+  min-height: 28px;
+  margin-top: 6px;
+  border-radius: 2px;
+}
+
+/* The picture itself, inset so the end dot and its ring are never cut off. */
+.plot {
+  position: relative;
+  flex: 1;
+  margin: 5px 7px 3px 1px;
+  touch-action: pan-y;
+}
+
+.plot > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.line {
+  fill: none;
+  stroke: var(--series);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.wash {
+  fill: var(--series);
+  opacity: 0.1;
+}
+
+.dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  margin: -4px 0 0 -4px;
+  background: var(--series);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--tile);
+}
+
+/* A threshold of the field: dashed, because it is a limit and not data.
+   Warning and critical differ in rhythm as well as colour, and carry their mark. */
+.limit {
+  position: absolute;
+  right: 0;
+  left: 0;
+  height: 1.5px;
+  margin-top: -0.75px;
+  background: repeating-linear-gradient(to right, var(--warning) 0 4px, transparent 4px 8px);
+  pointer-events: none;
+}
+
+.limit.crit {
+  background: repeating-linear-gradient(to right, var(--critical) 0 10px, transparent 10px 14px);
+}
+
+.limit > span {
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--ink-2);
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  /* A halo in the tile's colour keeps the label readable where the line runs behind it. */
+  text-shadow:
+    0 0 2px var(--tile),
+    0 0 2px var(--tile),
+    0 0 3px var(--tile);
+}
+
+/* With two thresholds, the labels sit on the outer sides, so they never run into each other. */
+.limit.below > span {
+  top: 3px;
+  bottom: auto;
+}
+
+.limit .icon {
+  font-size: 10px;
+}
+
+/* The readout that follows the pointer or the arrow keys. */
+.cross,
+.dot.reading,
+.tip {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.spark.reading .cross,
+.spark.reading .dot.reading,
+.spark.reading .tip {
+  visibility: visible;
+}
+
+.cross {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ink-3);
+}
+
+.dot.reading {
+  background: var(--ink);
+}
+
+.tip {
+  position: absolute;
+  top: -4px;
+  display: flex;
+  gap: 6px;
+  padding: 2px 7px 3px;
+  background: var(--ink);
+  color: var(--tile);
+  border-radius: 3px;
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.tip strong {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tip span {
+  opacity: 0.75;
+}
+
+/* A one-row tile: the value and what goes with it sit side by side, and the
+   extras that cannot fit (more rows, threshold labels) are left out. */
+@container (max-height: 120px) {
+  .figures {
+    flex-flow: row wrap;
+    align-items: baseline;
+    gap: 0 10px;
+  }
+
+  .figures .rows,
+  .trend .rows,
+  .limit > span {
+    display: none;
+  }
+
+  .trend {
+    flex-direction: row;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .trend-top {
+    flex: none;
+    align-items: flex-end;
+    margin: 0;
+  }
+
+  .spark {
+    min-height: 0;
+    margin-top: 0;
+  }
+
+  .light .icon {
+    font-size: clamp(20px, 44cqh, 40px);
+  }
+}
+
+/* ---------------------------------------------------------- empty board */
+
+/* With no tiles there is no grid: the note is as tall as what it says. */
+.board.is-empty {
+  display: block;
+}
+
+.empty-board {
+  max-width: 44rem;
+  padding: 18px 20px 20px;
+  background: var(--tile);
+  border-radius: 2px;
+}
+
+.empty-board h2 {
+  margin: 0 0 4px;
+  font-size: 1.3rem;
+}
+
+.empty-board p {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+}
+
+.empty-board ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.empty-board li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.empty-board li span {
+  color: var(--ink-2);
+}
+
+/* --------------------------------------------------------- narrow screen */
+
+/* Two columns: small tiles side by side, wide tiles across, in reading order. */
+@media (max-width: 720px) {
+  .board {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-auto-flow: dense;
+  }
+
+  .tile {
+    grid-column: span 2;
+    grid-row: span var(--h);
+  }
+
+  .tile[data-size="small"] {
+    grid-column: span 1;
+  }
+
+  .bar {
+    flex-wrap: wrap;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tile .body {
+    transition: opacity 0.3s;
+  }
 }

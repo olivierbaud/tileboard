@@ -71,10 +71,7 @@ impl Layout {
         for (i, tile) in self.tiles.iter().enumerate() {
             let at = format!("tile {}", i + 1);
             let id_ok = (1..=64).contains(&tile.id.len())
-                && tile
-                    .id
-                    .bytes()
-                    .all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-');
+                && tile.id.bytes().all(|c| c.is_ascii_alphanumeric() || c == b'_' || c == b'-');
             if !id_ok {
                 out.push(format!("{at}: id must be 1 to 64 letters, digits, _ or -"));
             } else if !ids.insert(&tile.id) {
@@ -103,14 +100,8 @@ impl Layout {
                 if field.params.len() > MAX_PARAMS {
                     out.push(format!("{at}: there are more than {MAX_PARAMS} params"));
                 }
-                if field
-                    .params
-                    .iter()
-                    .any(|(name, value)| !is_id(name) || value.chars().count() > MAX_TEXT)
-                {
-                    out.push(format!(
-                        "{at}: a param needs an id as name and a value of at most {MAX_TEXT} characters"
-                    ));
+                if field.params.iter().any(|(name, value)| !is_id(name) || value.chars().count() > MAX_TEXT) {
+                    out.push(format!("{at}: a param needs an id as name and a value of at most {MAX_TEXT} characters"));
                 }
             }
         }
@@ -147,20 +138,13 @@ impl LayoutStore {
                     serde_json::from_str(&text).map_err(|e| format!("{} is not a layout file: {e}", path.display()))?;
                 let problems = layout.problems();
                 if !problems.is_empty() {
-                    return Err(format!(
-                        "{} is not a valid layout: {}",
-                        path.display(),
-                        problems.join("; ")
-                    ));
+                    return Err(format!("{} is not a valid layout: {}", path.display(), problems.join("; ")));
                 }
                 layout
             }
             _ => starter,
         };
-        Ok(LayoutStore {
-            path,
-            current: Mutex::new(current),
-        })
+        Ok(LayoutStore { path, current: Mutex::new(current) })
     }
 
     pub fn get(&self) -> Layout {
@@ -182,10 +166,7 @@ impl LayoutStore {
         if incoming.rev != current.rev {
             return Err(SaveError::Conflict { current: current.rev });
         }
-        let saved = Layout {
-            rev: current.rev + 1,
-            tiles: incoming.tiles,
-        };
+        let saved = Layout { rev: current.rev + 1, tiles: incoming.tiles };
         if let Some(path) = &self.path {
             write_whole(path, &saved).map_err(|e| SaveError::Io(format!("cannot save {}: {e}", path.display())))?;
         }
@@ -240,10 +221,7 @@ mod tests {
     }
 
     fn layout(rev: u64, ids: &[&str]) -> Layout {
-        Layout {
-            rev,
-            tiles: ids.iter().map(|id| tile(id)).collect(),
-        }
+        Layout { rev, tiles: ids.iter().map(|id| tile(id)).collect() }
     }
 
     /// A fresh folder for one test, removed when the test ends.
@@ -295,10 +273,7 @@ mod tests {
         let cases: Vec<(&str, Change)> = vec![
             ("id must be", Box::new(|l| l.tiles[0].id = "tile 1".into())),
             ("id must be", Box::new(|l| l.tiles[0].id = String::new())),
-            (
-                "id \"t1\" is used twice",
-                Box::new(|l| l.tiles.push(l.tiles[0].clone())),
-            ),
+            ("id \"t1\" is used twice", Box::new(|l| l.tiles.push(l.tiles[0].clone()))),
             ("label is longer", Box::new(|l| l.tiles[0].label = "x".repeat(201))),
             ("w and h must be 1 or more", Box::new(|l| l.tiles[0].w = 0)),
             ("w and h must be 1 or more", Box::new(|l| l.tiles[0].h = 0)),
@@ -306,33 +281,21 @@ mod tests {
             ("x + w goes past the 12 columns", Box::new(|l| l.tiles[0].x = u32::MAX)),
             ("y and h must be at most", Box::new(|l| l.tiles[0].y = 10_001)),
             ("a tile has 1 to 50 fields", Box::new(|l| l.tiles[0].fields.clear())),
-            (
-                "app, source and field must be ids",
-                Box::new(|l| l.tiles[0].fields[0].app = "My App".into()),
-            ),
-            (
-                "app, source and field must be ids",
-                Box::new(|l| l.tiles[0].fields[0].field = String::new()),
-            ),
+            ("app, source and field must be ids", Box::new(|l| l.tiles[0].fields[0].app = "My App".into())),
+            ("app, source and field must be ids", Box::new(|l| l.tiles[0].fields[0].field = String::new())),
             (
                 "a param needs an id as name",
                 Box::new(|l| {
                     l.tiles[0].fields[0].params.insert("Bad Name".into(), "x".into());
                 }),
             ),
-            (
-                "there are 501 tiles",
-                Box::new(|l| l.tiles = (0..501).map(|n| tile(&format!("t{n}"))).collect()),
-            ),
+            ("there are 501 tiles", Box::new(|l| l.tiles = (0..501).map(|n| tile(&format!("t{n}"))).collect())),
         ];
         for (expected, change) in cases {
             let mut layout = layout(0, &["t1"]);
             change(&mut layout);
             let problems = layout.problems();
-            assert!(
-                problems.iter().any(|p| p.contains(expected)),
-                "expected {expected:?}, got {problems:?}"
-            );
+            assert!(problems.iter().any(|p| p.contains(expected)), "expected {expected:?}, got {problems:?}");
         }
     }
 
@@ -352,10 +315,7 @@ mod tests {
         let dir = TempDir::new("starter");
         let store = LayoutStore::open(Some(dir.file("layout.json")), layout(0, &["t1"])).unwrap();
         assert_eq!(store.get(), layout(0, &["t1"]));
-        assert!(
-            !dir.file("layout.json").exists(),
-            "nothing is written before the first save"
-        );
+        assert!(!dir.file("layout.json").exists(), "nothing is written before the first save");
     }
 
     #[test]
@@ -370,10 +330,7 @@ mod tests {
 
         let reopened = LayoutStore::open(Some(path.clone()), Layout::default()).unwrap();
         assert_eq!(reopened.get(), layout(2, &["t1", "t2"]));
-        assert!(
-            !dir.file("data").join("layout.json.tmp").exists(),
-            "the temporary file is gone"
-        );
+        assert!(!dir.file("data").join("layout.json.tmp").exists(), "the temporary file is gone");
     }
 
     #[test]

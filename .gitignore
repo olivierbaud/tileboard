@@ -7,6 +7,8 @@
 config.toml
 !config.example.toml
 layout.json
+layout.json.tmp
+/shots/
 *.db
 *.db-*
 *.sqlite

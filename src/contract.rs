@@ -233,11 +233,7 @@ pub enum ItemValue {
 
 impl Entry {
     fn of(value: Value) -> Entry {
-        Entry {
-            value,
-            status: None,
-            series: None,
-        }
+        Entry { value, status: None, series: None }
     }
 
     /// No data right now.
@@ -280,11 +276,7 @@ impl Entry {
 
 impl Item {
     pub fn new(label: impl Into<String>) -> Item {
-        Item {
-            label: label.into(),
-            value: None,
-            status: None,
-        }
+        Item { label: label.into(), value: None, status: None }
     }
 
     pub fn number(mut self, value: f64) -> Item {
@@ -575,14 +567,7 @@ mod tests {
     use super::*;
 
     fn field(kind: FieldType, warn: Option<f64>, crit: Option<f64>) -> Field {
-        Field {
-            id: "f".into(),
-            label: "F".into(),
-            kind,
-            unit: None,
-            warn,
-            crit,
-        }
+        Field { id: "f".into(), label: "F".into(), kind, unit: None, warn, crit }
     }
 
     fn small_catalogue() -> Catalogue {
@@ -633,25 +618,12 @@ mod tests {
 
     #[test]
     fn links() {
-        for good in [
-            "/",
-            "/servers/atlas",
-            "/#server",
-            "/?a=1",
-            "http://app.example/x",
-            "https://app.example",
-        ] {
+        for good in ["/", "/servers/atlas", "/#server", "/?a=1", "http://app.example/x", "https://app.example"] {
             assert!(is_link(good), "{good:?}");
         }
-        for bad in [
-            "",
-            "servers",
-            "//other.example/x",
-            "http://",
-            "https://",
-            "ftp://app.example",
-            "javascript:alert(1)",
-        ] {
+        for bad in
+            ["", "servers", "//other.example/x", "http://", "https://", "ftp://app.example", "javascript:alert(1)"]
+        {
             assert!(!is_link(bad), "{bad:?}");
         }
     }
@@ -671,58 +643,25 @@ mod tests {
             ("used twice", Box::new(|c| c.sources.push(c.sources[0].clone()))),
             ("refresh_s must be 1 or more", Box::new(|c| c.sources[0].refresh_s = 0)),
             ("there are no fields", Box::new(|c| c.sources[0].fields.clear())),
-            (
-                "id is used twice",
-                Box::new(|c| c.sources[0].fields[1].id = "count".into()),
-            ),
-            (
-                "name is used twice",
-                Box::new(|c| c.sources[0].params[1].name = "period".into()),
-            ),
-            (
-                "a choice needs options",
-                Box::new(|c| c.sources[0].params[0].options.clear()),
-            ),
+            ("id is used twice", Box::new(|c| c.sources[0].fields[1].id = "count".into())),
+            ("name is used twice", Box::new(|c| c.sources[0].params[1].name = "period".into())),
+            ("a choice needs options", Box::new(|c| c.sources[0].params[0].options.clear())),
             (
                 "option value \"day\" is used twice",
                 Box::new(|c| c.sources[0].params[0].options[1].value = "day".into()),
             ),
-            (
-                "default \"year\" is not a valid value",
-                Box::new(|c| c.sources[0].params[0].default = "year".into()),
-            ),
-            (
-                "default \"five\" is not a valid value",
-                Box::new(|c| c.sources[0].params[1].default = "five".into()),
-            ),
+            ("default \"year\" is not a valid value", Box::new(|c| c.sources[0].params[0].default = "year".into())),
+            ("default \"five\" is not a valid value", Box::new(|c| c.sources[0].params[1].default = "five".into())),
             (
                 "only a choice has options",
                 Box::new(|c| c.sources[0].params[1].options = c.sources[0].params[0].options.clone()),
             ),
-            (
-                "warn and crit are only for",
-                Box::new(|c| c.sources[0].fields[3].warn = Some(1.0)),
-            ),
-            (
-                "unit is only for",
-                Box::new(|c| c.sources[0].fields[2].unit = Some("%".into())),
-            ),
-            (
-                "warn and crit must differ",
-                Box::new(|c| c.sources[0].fields[0].crit = Some(100.0)),
-            ),
-            (
-                "source \"refunds\" does not exist",
-                Box::new(|c| c.presets[0].source = "refunds".into()),
-            ),
-            (
-                "field \"total\" is not in source",
-                Box::new(|c| c.presets[0].fields.push("total".into())),
-            ),
-            (
-                "field \"count\" is listed twice",
-                Box::new(|c| c.presets[0].fields.push("count".into())),
-            ),
+            ("warn and crit are only for", Box::new(|c| c.sources[0].fields[3].warn = Some(1.0))),
+            ("unit is only for", Box::new(|c| c.sources[0].fields[2].unit = Some("%".into()))),
+            ("warn and crit must differ", Box::new(|c| c.sources[0].fields[0].crit = Some(100.0))),
+            ("source \"refunds\" does not exist", Box::new(|c| c.presets[0].source = "refunds".into())),
+            ("field \"total\" is not in source", Box::new(|c| c.presets[0].fields.push("total".into()))),
+            ("field \"count\" is listed twice", Box::new(|c| c.presets[0].fields.push("count".into()))),
             (
                 "param \"shop\" is not in source",
                 Box::new(|c| {
@@ -780,14 +719,8 @@ mod tests {
 
         type Change = Box<dyn Fn(&mut serde_json::Value)>;
         let cases: Vec<(&str, Change)> = vec![
-            (
-                "not an RFC 3339 date-time",
-                Box::new(|d| d["updated_at"] = "today".into()),
-            ),
-            (
-                "neither an http(s) address nor a path",
-                Box::new(|d| d["link"] = "javascript:alert(1)".into()),
-            ),
+            ("not an RFC 3339 date-time", Box::new(|d| d["updated_at"] = "today".into())),
+            ("neither an http(s) address nor a path", Box::new(|d| d["link"] = "javascript:alert(1)".into())),
             (
                 "field \"count\" is missing",
                 Box::new(|d| {
@@ -802,10 +735,7 @@ mod tests {
                 "field \"state\": value does not fit a status field",
                 Box::new(|d| d["values"]["state"]["value"] = "fine".into()),
             ),
-            (
-                "field \"note\": value does not fit a text field",
-                Box::new(|d| d["values"]["note"]["value"] = 4.into()),
-            ),
+            ("field \"note\": value does not fit a text field", Box::new(|d| d["values"]["note"]["value"] = 4.into())),
             (
                 "field \"latest\": value does not fit a list field",
                 Box::new(|d| d["values"]["latest"]["value"] = "a, b".into()),
@@ -861,15 +791,9 @@ mod tests {
     #[test]
     fn status_sent_by_the_app_wins_over_thresholds() {
         let cpu = field(FieldType::Number, Some(75.0), Some(90.0));
-        assert_eq!(
-            cpu.status_of(&Entry::number(99.0).with_status(Status::Ok)),
-            Some(Status::Ok)
-        );
+        assert_eq!(cpu.status_of(&Entry::number(99.0).with_status(Status::Ok)), Some(Status::Ok));
         let note = field(FieldType::Text, None, None);
-        assert_eq!(
-            note.status_of(&Entry::text("late").with_status(Status::Warn)),
-            Some(Status::Warn)
-        );
+        assert_eq!(note.status_of(&Entry::text("late").with_status(Status::Warn)), Some(Status::Warn));
     }
 
     #[test]
@@ -881,18 +805,9 @@ mod tests {
 
     #[test]
     fn no_thresholds_and_no_data_mean_no_status() {
-        assert_eq!(
-            field(FieldType::Number, None, None).status_of(&Entry::number(5.0)),
-            None
-        );
-        assert_eq!(
-            field(FieldType::Number, Some(1.0), Some(2.0)).status_of(&Entry::none()),
-            None
-        );
-        assert_eq!(
-            field(FieldType::Text, None, None).status_of(&Entry::text("hello")),
-            None
-        );
+        assert_eq!(field(FieldType::Number, None, None).status_of(&Entry::number(5.0)), None);
+        assert_eq!(field(FieldType::Number, Some(1.0), Some(2.0)).status_of(&Entry::none()), None);
+        assert_eq!(field(FieldType::Text, None, None).status_of(&Entry::text("hello")), None);
     }
 
     #[test]
@@ -901,14 +816,9 @@ mod tests {
         assert_eq!(json(Entry::number(41.5)), r#"{"value":41.5}"#);
         assert_eq!(json(Entry::none()), r#"{"value":null}"#);
         assert_eq!(json(Entry::status(Status::Warn)), r#"{"value":"warn"}"#);
+        assert_eq!(json(Entry::series(vec![1.5, 2.5])), r#"{"value":2.5,"series":[1.5,2.5]}"#);
         assert_eq!(
-            json(Entry::series(vec![1.5, 2.5])),
-            r#"{"value":2.5,"series":[1.5,2.5]}"#
-        );
-        assert_eq!(
-            json(Entry::list(vec![
-                Item::new("mail").text("restarting").status(Status::Warn)
-            ])),
+            json(Entry::list(vec![Item::new("mail").text("restarting").status(Status::Warn)])),
             r#"{"value":[{"label":"mail","value":"restarting","status":"warn"}]}"#
         );
     }
@@ -925,17 +835,10 @@ mod tests {
         assert_eq!(serde_json::from_str::<Entry>(&huge).unwrap(), Entry::number(1e300));
         assert_eq!(json(Entry::series(vec![1.0, 2.5])), r#"{"value":2.5,"series":[1,2.5]}"#);
         assert_eq!(
-            json(Entry {
-                value: Value::Null,
-                status: None,
-                series: Some(vec![Some(1.0), None])
-            }),
+            json(Entry { value: Value::Null, status: None, series: Some(vec![Some(1.0), None]) }),
             r#"{"value":null,"series":[1,null]}"#
         );
-        assert_eq!(
-            json(Entry::list(vec![Item::new("a").number(2.0)])),
-            r#"{"value":[{"label":"a","value":2}]}"#
-        );
+        assert_eq!(json(Entry::list(vec![Item::new("a").number(2.0)])), r#"{"value":[{"label":"a","value":2}]}"#);
 
         let cpu = field(FieldType::Number, Some(75.0), Some(92.5));
         let written = serde_json::to_string(&cpu).unwrap();

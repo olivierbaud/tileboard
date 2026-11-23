@@ -10,12 +10,7 @@ pub fn now() -> i64 {
 pub fn format(unix: i64) -> String {
     let (y, m, d) = civil_from_days(unix.div_euclid(86_400));
     let secs = unix.rem_euclid(86_400);
-    format!(
-        "{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z",
-        secs / 3600,
-        secs % 3600 / 60,
-        secs % 60
-    )
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", secs / 3600, secs % 3600 / 60, secs % 60)
 }
 
 /// A date-time string to Unix seconds (a fraction of a second is dropped).

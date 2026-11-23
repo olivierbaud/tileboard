@@ -28,6 +28,30 @@ pub const FILES: &[WebFile] = &[
         built_in: include_str!("../web/app.js"),
     },
     WebFile {
+        route: "/format.js",
+        name: "format.js",
+        content_type: "text/javascript; charset=utf-8",
+        built_in: include_str!("../web/format.js"),
+    },
+    WebFile {
+        route: "/model.js",
+        name: "model.js",
+        content_type: "text/javascript; charset=utf-8",
+        built_in: include_str!("../web/model.js"),
+    },
+    WebFile {
+        route: "/views.js",
+        name: "views.js",
+        content_type: "text/javascript; charset=utf-8",
+        built_in: include_str!("../web/views.js"),
+    },
+    WebFile {
+        route: "/icon.svg",
+        name: "icon.svg",
+        content_type: "image/svg+xml",
+        built_in: include_str!("../web/icon.svg"),
+    },
+    WebFile {
         route: "/style.css",
         name: "style.css",
         content_type: "text/css; charset=utf-8",
@@ -77,12 +101,7 @@ mod tests {
         for file in FILES {
             // Line endings can differ between the checkout and the built-in copy.
             let normal = |text: Cow<str>| text.replace("\r\n", "\n");
-            assert_eq!(
-                normal(from_disk.read(file).unwrap()),
-                normal(built_in.read(file).unwrap()),
-                "{}",
-                file.name
-            );
+            assert_eq!(normal(from_disk.read(file).unwrap()), normal(built_in.read(file).unwrap()), "{}", file.name);
         }
         let missing = Web::from_dir(PathBuf::from("/no/such/folder"));
         assert!(missing.read(&FILES[0]).is_err());
@@ -92,13 +111,56 @@ mod tests {
     fn the_page_loads_nothing_from_outside() {
         // The page's Content-Security-Policy only allows files from the dashboard itself.
         let page = Web::built_in().read(&FILES[0]).unwrap();
-        assert!(
-            !page.contains("http://") && !page.contains("https://"),
-            "index.html points outside"
-        );
-        assert!(
-            !page.contains("<script>") && !page.contains("style="),
-            "index.html has inline script or style"
-        );
+        assert!(!page.contains("http://") && !page.contains("https://"), "index.html points outside");
+        assert!(!page.contains("<script>") && !page.contains("style="), "index.html has inline script or style");
+    }
+
+    #[test]
+    fn every_file_in_the_web_folder_is_served() {
+        // A file that is in `web/` but not in FILES works with --web-dir and is missing in a real build.
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("web");
+        let mut on_disk: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|entry| entry.unwrap())
+            .filter(|entry| entry.file_type().unwrap().is_file())
+            .map(|entry| entry.file_name().into_string().unwrap())
+            .collect();
+        let mut served: Vec<String> = FILES.iter().map(|file| file.name.to_string()).collect();
+        on_disk.sort();
+        served.sort();
+        assert_eq!(on_disk, served);
+    }
+
+    #[test]
+    fn everything_the_frontend_loads_is_served() {
+        let routes: Vec<&str> = FILES.iter().map(|file| file.route).collect();
+        let web = Web::built_in();
+        for file in FILES {
+            let text = web.read(file).unwrap();
+            // `src="/app.js"` and `href="/style.css"` in the page, `from "./model.js"` in the scripts.
+            let wanted = text
+                .split(['"', '\''])
+                .filter(|part| [".js", ".css", ".svg"].iter().any(|kind| part.ends_with(kind)))
+                .filter(|part| part.starts_with('/') || part.starts_with("./"));
+            for path in wanted {
+                let route = path.trim_start_matches('.');
+                assert!(routes.contains(&route), "{} loads {path}, which is not served", file.name);
+            }
+        }
+    }
+
+    #[test]
+    fn the_scripts_never_build_html_from_text() {
+        // What apps send goes on the page as text only. These are the ways around that.
+        let banned = ["innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"];
+        let web = Web::built_in();
+        for file in FILES.iter().filter(|file| file.name.ends_with(".js")) {
+            let text = web.read(file).unwrap();
+            for word in banned {
+                assert!(!text.contains(word), "{} uses {word}", file.name);
+            }
+            // The page's Content-Security-Policy forbids style attributes; styles are set through `.style`.
+            assert!(!text.contains("setAttribute(\"style\""), "{} sets a style attribute", file.name);
+        }
     }
 }

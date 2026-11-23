@@ -46,22 +46,10 @@ static CATALOGUE: LazyLock<Catalogue> = LazyLock::new(|| Catalogue {
             ],
             fields: vec![
                 field("cpu", "CPU", FieldType::Number, Some("%"), Some((75.0, 90.0))),
-                field(
-                    "cpu_history",
-                    "CPU history",
-                    FieldType::Series,
-                    Some("%"),
-                    Some((75.0, 90.0)),
-                ),
+                field("cpu_history", "CPU history", FieldType::Series, Some("%"), Some((75.0, 90.0))),
                 field("memory", "Memory", FieldType::Number, Some("%"), Some((80.0, 92.0))),
                 // Lower is worse: crit is below warn.
-                field(
-                    "disk_free",
-                    "Disk free",
-                    FieldType::Number,
-                    Some("GB"),
-                    Some((50.0, 20.0)),
-                ),
+                field("disk_free", "Disk free", FieldType::Number, Some("GB"), Some((50.0, 20.0))),
                 field("uptime", "Uptime", FieldType::Text, None, None),
                 field("backup", "Last backup", FieldType::Status, None, None),
                 field("services", "Services", FieldType::List, None, None),
@@ -74,11 +62,7 @@ static CATALOGUE: LazyLock<Catalogue> = LazyLock::new(|| Catalogue {
             params: vec![choice(
                 "place",
                 "Place",
-                &[
-                    ("northaven", "Northaven"),
-                    ("saltmere", "Saltmere"),
-                    ("emberfall", "Emberfall"),
-                ],
+                &[("northaven", "Northaven"), ("saltmere", "Saltmere"), ("emberfall", "Emberfall")],
             )],
             fields: vec![
                 field("temp", "Temperature", FieldType::Number, Some("°C"), None),
@@ -86,13 +70,7 @@ static CATALOGUE: LazyLock<Catalogue> = LazyLock::new(|| Catalogue {
                 field("condition", "Conditions", FieldType::Text, None, None),
                 field("wind", "Wind", FieldType::Number, Some("km/h"), Some((40.0, 70.0))),
                 field("rain_chance", "Chance of rain", FieldType::Number, Some("%"), None),
-                field(
-                    "temp_24h",
-                    "Temperature, last 24 h",
-                    FieldType::Series,
-                    Some("°C"),
-                    None,
-                ),
+                field("temp_24h", "Temperature, last 24 h", FieldType::Series, Some("°C"), None),
                 field("forecast", "Forecast", FieldType::List, Some("°C"), None),
             ],
         },
@@ -100,21 +78,11 @@ static CATALOGUE: LazyLock<Catalogue> = LazyLock::new(|| Catalogue {
             id: "spending".into(),
             title: "Spending".into(),
             refresh_s: 30,
-            params: vec![choice(
-                "period",
-                "Period",
-                &[("week", "This week"), ("month", "This month")],
-            )],
+            params: vec![choice("period", "Period", &[("week", "This week"), ("month", "This month")])],
             fields: vec![
                 field("total", "Spent", FieldType::Number, Some("$"), None),
                 // Lower is worse: crit is below warn.
-                field(
-                    "budget_left",
-                    "Budget left",
-                    FieldType::Number,
-                    Some("$"),
-                    Some((100.0, 0.0)),
-                ),
+                field("budget_left", "Budget left", FieldType::Number, Some("$"), Some((100.0, 0.0))),
                 field("daily", "Spent per day", FieldType::Series, Some("$"), None),
                 field("top_categories", "Top categories", FieldType::List, Some("$"), None),
                 field("biggest", "Biggest category", FieldType::Text, None, None),
@@ -125,26 +93,14 @@ static CATALOGUE: LazyLock<Catalogue> = LazyLock::new(|| Catalogue {
     presets: vec![
         preset("CPU", "server", &[], &["cpu"], View::Number),
         preset("CPU history", "server", &[], &["cpu_history"], View::Sparkline),
-        preset(
-            "Server overview",
-            "server",
-            &[],
-            &["cpu", "memory", "disk_free", "uptime"],
-            View::Table,
-        ),
+        preset("Server overview", "server", &[], &["cpu", "memory", "disk_free", "uptime"], View::Table),
         preset("Last backup", "server", &[], &["backup"], View::Status),
         preset("Services", "server", &[], &["services"], View::List),
         preset("Comet CPU", "server", &[("host", "comet")], &["cpu"], View::Number),
         preset("Weather now", "weather", &[], &["temp", "condition"], View::Number),
         preset("Temperature, last 24 h", "weather", &[], &["temp_24h"], View::Sparkline),
         preset("Forecast", "weather", &[], &["forecast"], View::List),
-        preset(
-            "Spent this week",
-            "spending",
-            &[],
-            &["total", "budget_left"],
-            View::Number,
-        ),
+        preset("Spent this week", "spending", &[], &["total", "budget_left"], View::Number),
         preset("Top categories", "spending", &[], &["top_categories"], View::List),
         preset(
             "Month so far",
@@ -178,96 +134,16 @@ pub fn starter_layout(app: &str) -> Layout {
     );
     const ROWS: &[Row] = &[
         ("CPU", View::Number, 0, 0, 3, 2, "server", &[], &["cpu"]),
-        (
-            "CPU history",
-            View::Sparkline,
-            3,
-            0,
-            5,
-            2,
-            "server",
-            &[],
-            &["cpu_history"],
-        ),
+        ("CPU history", View::Sparkline, 3, 0, 5, 2, "server", &[], &["cpu_history"]),
         ("Last backup", View::Status, 8, 0, 2, 2, "server", &[], &["backup"]),
-        (
-            "Comet CPU",
-            View::Number,
-            10,
-            0,
-            2,
-            2,
-            "server",
-            &[("host", "comet")],
-            &["cpu"],
-        ),
-        (
-            "Atlas",
-            View::Table,
-            0,
-            2,
-            4,
-            3,
-            "server",
-            &[],
-            &["cpu", "memory", "disk_free", "uptime"],
-        ),
+        ("Comet CPU", View::Number, 10, 0, 2, 2, "server", &[("host", "comet")], &["cpu"]),
+        ("Atlas", View::Table, 0, 2, 4, 3, "server", &[], &["cpu", "memory", "disk_free", "uptime"]),
         ("Services", View::List, 4, 2, 3, 3, "server", &[], &["services"]),
-        (
-            "Northaven",
-            View::Number,
-            7,
-            2,
-            2,
-            3,
-            "weather",
-            &[],
-            &["temp", "condition"],
-        ),
-        (
-            "Temperature, last 24 h",
-            View::Sparkline,
-            9,
-            2,
-            3,
-            3,
-            "weather",
-            &[],
-            &["temp_24h"],
-        ),
-        (
-            "This week",
-            View::Number,
-            0,
-            5,
-            4,
-            2,
-            "spending",
-            &[],
-            &["total", "budget_left"],
-        ),
-        (
-            "Spent per day",
-            View::Sparkline,
-            4,
-            5,
-            4,
-            2,
-            "spending",
-            &[],
-            &["daily"],
-        ),
-        (
-            "Top categories",
-            View::List,
-            8,
-            5,
-            4,
-            3,
-            "spending",
-            &[],
-            &["top_categories"],
-        ),
+        ("Northaven", View::Number, 7, 2, 2, 3, "weather", &[], &["temp", "condition"]),
+        ("Temperature, last 24 h", View::Sparkline, 9, 2, 3, 3, "weather", &[], &["temp_24h"]),
+        ("This week", View::Number, 0, 5, 3, 3, "spending", &[], &["total", "budget_left"]),
+        ("Spent per day", View::Sparkline, 3, 5, 5, 3, "spending", &[], &["daily"]),
+        ("Top categories", View::List, 8, 5, 4, 3, "spending", &[], &["top_categories"]),
     ];
 
     let tiles = ROWS
@@ -286,10 +162,7 @@ pub fn starter_layout(app: &str) -> Layout {
                 .map(|field| FieldRef {
                     app: app.to_string(),
                     source: source.to_string(),
-                    params: params
-                        .iter()
-                        .map(|(name, value)| (name.to_string(), value.to_string()))
-                        .collect(),
+                    params: params.iter().map(|(name, value)| (name.to_string(), value.to_string())).collect(),
                     field: field.to_string(),
                 })
                 .collect(),
@@ -306,10 +179,7 @@ fn choice(name: &str, label: &str, options: &[(&str, &str)]) -> Param {
         kind: ParamType::Choice,
         options: options
             .iter()
-            .map(|(value, label)| ParamOption {
-                value: (*value).into(),
-                label: Some((*label).into()),
-            })
+            .map(|(value, label)| ParamOption { value: (*value).into(), label: Some((*label).into()) })
             .collect(),
         default: options[0].0.into(),
     }
@@ -332,10 +202,7 @@ fn preset(title: &str, source: &str, params: &[(&str, &str)], fields: &[&str], v
         title: title.into(),
         source: source.into(),
         fields: fields.iter().map(|id| (*id).into()).collect(),
-        params: params
-            .iter()
-            .map(|(name, value)| ((*name).into(), (*value).into()))
-            .collect(),
+        params: params.iter().map(|(name, value)| ((*name).into(), (*value).into())).collect(),
         view: Some(view),
     }
 }
@@ -351,10 +218,7 @@ pub enum DemoError {
 
 impl DemoError {
     fn bad_param(name: &str, value: &str) -> DemoError {
-        DemoError::BadParam {
-            name: name.into(),
-            value: value.into(),
-        }
+        DemoError::BadParam { name: name.into(), value: value.into() }
     }
 
     pub fn status(&self) -> StatusCode {
@@ -383,9 +247,7 @@ type Values = Vec<(&'static str, Entry)>;
 
 /// The demo app's data for one source (`GET /widgets/<source>`) at Unix time `now`.
 pub fn data(source_id: &str, query: &HashMap<String, String>, now: i64) -> Result<Data, DemoError> {
-    let source = CATALOGUE
-        .source(source_id)
-        .ok_or_else(|| DemoError::UnknownSource(source_id.to_string()))?;
+    let source = CATALOGUE.source(source_id).ok_or_else(|| DemoError::UnknownSource(source_id.to_string()))?;
 
     // Query params the source does not have are ignored.
     let mut params = Params::new();
@@ -427,25 +289,11 @@ struct Host {
     uptime: (i64, i64),
 }
 
-const ATLAS: Host = Host {
-    seed: 1,
-    cpu: 55.0,
-    swing: 1.0,
-    memory: 62.0,
-    disk: (120.0, 12.0),
-    ahead: 0,
-    uptime: (3_100_000, 37),
-};
+const ATLAS: Host =
+    Host { seed: 1, cpu: 55.0, swing: 1.0, memory: 62.0, disk: (120.0, 12.0), ahead: 0, uptime: (3_100_000, 37) };
 
-const COMET: Host = Host {
-    seed: 2,
-    cpu: 24.0,
-    swing: 0.5,
-    memory: 41.0,
-    disk: (380.0, 300.0),
-    ahead: 290,
-    uptime: (800_000, 11),
-};
+const COMET: Host =
+    Host { seed: 2, cpu: 24.0, swing: 0.5, memory: 41.0, disk: (380.0, 300.0), ahead: 290, uptime: (800_000, 11) };
 
 fn cpu(host: &Host, t: i64) -> f64 {
     let load = 26.0 * wave(t + host.ahead, 240) + 12.0 * wave(t, 67) + 10.0 * (noise(host.seed, t / 5) - 0.5);
@@ -487,12 +335,7 @@ fn server(t: i64, params: &Params) -> Result<Values, DemoError> {
     } else {
         Item::new("scheduler").status(Status::Ok)
     };
-    let services = vec![
-        Item::new("web").status(Status::Ok),
-        Item::new("database").status(Status::Ok),
-        mail,
-        scheduler,
-    ];
+    let services = vec![Item::new("web").status(Status::Ok), Item::new("database").status(Status::Ok), mail, scheduler];
 
     let up_for = (t + host.uptime.0).rem_euclid(host.uptime.1 * 86_400);
 
@@ -509,11 +352,7 @@ fn server(t: i64, params: &Params) -> Result<Values, DemoError> {
 
 fn uptime(secs: i64) -> String {
     let (days, hours, minutes) = (secs / 86_400, secs % 86_400 / 3600, secs % 3600 / 60);
-    if days > 0 {
-        format!("{days}d {hours}h")
-    } else {
-        format!("{hours}h {minutes}m")
-    }
+    if days > 0 { format!("{days}d {hours}h") } else { format!("{hours}h {minutes}m") }
 }
 
 struct Place {
@@ -522,21 +361,9 @@ struct Place {
     wind: f64,
 }
 
-const NORTHAVEN: Place = Place {
-    seed: 11,
-    temp: 8.0,
-    wind: 20.0,
-};
-const SALTMERE: Place = Place {
-    seed: 12,
-    temp: 16.0,
-    wind: 26.0,
-};
-const EMBERFALL: Place = Place {
-    seed: 13,
-    temp: 27.0,
-    wind: 48.0,
-};
+const NORTHAVEN: Place = Place { seed: 11, temp: 8.0, wind: 20.0 };
+const SALTMERE: Place = Place { seed: 12, temp: 16.0, wind: 26.0 };
+const EMBERFALL: Place = Place { seed: 13, temp: 27.0, wind: 48.0 };
 
 const WEEKDAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -573,11 +400,7 @@ fn weather(t: i64, params: &Params) -> Values {
     let weekday = t.div_euclid(86_400) + 4; // 1970-01-01 was a Thursday
     let forecast = (0..5)
         .map(|ahead| {
-            let label = if ahead == 0 {
-                "Today"
-            } else {
-                WEEKDAYS[(weekday + ahead).rem_euclid(7) as usize]
-            };
+            let label = if ahead == 0 { "Today" } else { WEEKDAYS[(weekday + ahead).rem_euclid(7) as usize] };
             let high = round1(place.temp + 6.0 + 3.0 * (noise(place.seed + 1, day + ahead) - 0.5));
             Item::new(label).number(high)
         })
@@ -589,22 +412,14 @@ fn weather(t: i64, params: &Params) -> Values {
         ("condition", Entry::text(condition)),
         ("wind", Entry::number(wind)),
         ("rain_chance", Entry::number(rain)),
-        (
-            "temp_24h",
-            Entry::series((0..24).rev().map(|back| temp(place, hour - back)).collect()),
-        ),
+        ("temp_24h", Entry::series((0..24).rev().map(|back| temp(place, hour - back)).collect())),
         ("forecast", Entry::list(forecast)),
     ]
 }
 
 /// Category names with their usual share of the spending.
-const CATEGORIES: [(&str, f64); 5] = [
-    ("Groceries", 34.0),
-    ("Bills", 24.0),
-    ("Eating out", 18.0),
-    ("Transport", 14.0),
-    ("Fun", 10.0),
-];
+const CATEGORIES: [(&str, f64); 5] =
+    [("Groceries", 34.0), ("Bills", 24.0), ("Eating out", 18.0), ("Transport", 14.0), ("Fun", 10.0)];
 
 /// The money spent on one made-up day: $35 to $135.
 fn spent_on(day: i64) -> f64 {
@@ -612,11 +427,7 @@ fn spent_on(day: i64) -> f64 {
 }
 
 fn spending(t: i64, params: &Params) -> Values {
-    let (days, budget) = if params["period"] == "month" {
-        (30, 2550.0)
-    } else {
-        (7, 600.0)
-    };
+    let (days, budget) = if params["period"] == "month" { (30, 2550.0) } else { (7, 600.0) };
     let day = t.div_euclid(60); // one made-up day per minute
     let part_of_today = t.rem_euclid(60) as f64 / 60.0;
     let today = spent_on(day) * part_of_today;
@@ -634,35 +445,20 @@ fn spending(t: i64, params: &Params) -> Values {
         Status::Ok
     };
 
-    let daily = (0..days)
-        .rev()
-        .map(|back| round2(if back == 0 { today } else { spent_on(day - back) }))
-        .collect();
+    let daily = (0..days).rev().map(|back| round2(if back == 0 { today } else { spent_on(day - back) })).collect();
 
     // Each period splits the money a little differently.
     let period = start.div_euclid(days);
-    let weights: Vec<f64> = (0u64..)
-        .zip(CATEGORIES)
-        .map(|(i, (_, share))| share * (0.6 + 0.8 * noise(30 + i, period)))
-        .collect();
+    let weights: Vec<f64> =
+        (0u64..).zip(CATEGORIES).map(|(i, (_, share))| share * (0.6 + 0.8 * noise(30 + i, period))).collect();
     let all: f64 = weights.iter().sum();
-    let mut categories: Vec<(&str, f64)> = CATEGORIES
-        .iter()
-        .zip(&weights)
-        .map(|((name, _), weight)| (*name, round2(total * weight / all)))
-        .collect();
+    let mut categories: Vec<(&str, f64)> =
+        CATEGORIES.iter().zip(&weights).map(|((name, _), weight)| (*name, round2(total * weight / all))).collect();
     categories.sort_by(|a, b| b.1.total_cmp(&a.1));
 
     // Nothing spent yet at the very start of a period: no biggest category.
-    let biggest = if total > 0.0 {
-        Entry::text(categories[0].0)
-    } else {
-        Entry::none()
-    };
-    let top = categories
-        .into_iter()
-        .map(|(name, amount)| Item::new(name).number(amount))
-        .collect();
+    let biggest = if total > 0.0 { Entry::text(categories[0].0) } else { Entry::none() };
+    let top = categories.into_iter().map(|(name, amount)| Item::new(name).number(amount)).collect();
 
     vec![
         ("total", Entry::number(round2(total))),
@@ -751,11 +547,8 @@ static HOME: LazyLock<String> = LazyLock::new(|| {
          <p>The catalogue: <a href=\"/widgets\">/widgets</a></p>\n",
     );
     for source in &CATALOGUE.sources {
-        let fields: Vec<String> = source
-            .fields
-            .iter()
-            .map(|f| format!("{} ({})", escape(&f.label), f.kind.as_str()))
-            .collect();
+        let fields: Vec<String> =
+            source.fields.iter().map(|f| format!("{} ({})", escape(&f.label), f.kind.as_str())).collect();
         page.push_str(&format!(
             "<h2 id=\"{id}\">{title}</h2>\n\
              <p><a href=\"/widgets/{id}\">/widgets/{id}</a>, new values every {refresh} s</p>\n\
@@ -771,10 +564,7 @@ static HOME: LazyLock<String> = LazyLock::new(|| {
 });
 
 fn escape(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
 #[cfg(test)]
@@ -789,10 +579,7 @@ mod tests {
     const NO_PROBLEMS: Vec<String> = Vec::new();
 
     fn query(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-        pairs
-            .iter()
-            .map(|(name, value)| (name.to_string(), value.to_string()))
-            .collect()
+        pairs.iter().map(|(name, value)| (name.to_string(), value.to_string())).collect()
     }
 
     /// Every combination of the source's choice params.
@@ -842,12 +629,7 @@ mod tests {
             for choice in every_choice(source) {
                 for t in (T0..T0 + 3600).step_by(7) {
                     let answer = data(&source.id, &choice, t).unwrap();
-                    assert_eq!(
-                        source.data_problems(&answer),
-                        NO_PROBLEMS,
-                        "{} {choice:?} at {t}",
-                        source.id
-                    );
+                    assert_eq!(source.data_problems(&answer), NO_PROBLEMS, "{} {choice:?} at {t}", source.id);
                 }
             }
         }
@@ -873,33 +655,18 @@ mod tests {
             assert_eq!(at(T0), at(T0 + refresh - 1), "{}", source.id);
             assert_eq!(at(T0 + refresh).updated_at, rfc3339::format(T0 + refresh));
 
-            let different: HashSet<String> = (0..20)
-                .map(|n| serde_json::to_string(&at(T0 + n * refresh).values).unwrap())
-                .collect();
-            assert!(
-                different.len() >= 15,
-                "{} barely moves: {} different answers in 20",
-                source.id,
-                different.len()
-            );
+            let different: HashSet<String> =
+                (0..20).map(|n| serde_json::to_string(&at(T0 + n * refresh).values).unwrap()).collect();
+            assert!(different.len() >= 15, "{} barely moves: {} different answers in 20", source.id, different.len());
         }
     }
 
     #[test]
     fn left_out_params_use_their_defaults() {
         let none = HashMap::new();
-        assert_eq!(
-            data("server", &none, T0),
-            data("server", &query(&[("host", "atlas"), ("points", "30")]), T0)
-        );
-        assert_eq!(
-            data("weather", &none, T0),
-            data("weather", &query(&[("place", "northaven")]), T0)
-        );
-        assert_eq!(
-            data("spending", &none, T0),
-            data("spending", &query(&[("period", "week")]), T0)
-        );
+        assert_eq!(data("server", &none, T0), data("server", &query(&[("host", "atlas"), ("points", "30")]), T0));
+        assert_eq!(data("weather", &none, T0), data("weather", &query(&[("place", "northaven")]), T0));
+        assert_eq!(data("spending", &none, T0), data("spending", &query(&[("period", "week")]), T0));
     }
 
     #[test]
@@ -914,14 +681,8 @@ mod tests {
     fn params_change_the_answer() {
         let at = |source, pairs: &[(&str, &str)]| data(source, &query(pairs), T0 + 600).unwrap().values;
         assert_ne!(at("server", &[("host", "atlas")]), at("server", &[("host", "comet")]));
-        assert_ne!(
-            at("weather", &[("place", "northaven")]),
-            at("weather", &[("place", "emberfall")])
-        );
-        assert_ne!(
-            at("spending", &[("period", "week")]),
-            at("spending", &[("period", "month")])
-        );
+        assert_ne!(at("weather", &[("place", "northaven")]), at("weather", &[("place", "emberfall")]));
+        assert_ne!(at("spending", &[("period", "week")]), at("spending", &[("period", "month")]));
     }
 
     #[test]
@@ -946,10 +707,7 @@ mod tests {
     #[test]
     fn an_unknown_source_is_refused() {
         for id in ["nope", "", "Server", "server/extra"] {
-            assert_eq!(
-                data(id, &HashMap::new(), T0),
-                Err(DemoError::UnknownSource(id.to_string()))
-            );
+            assert_eq!(data(id, &HashMap::new(), T0), Err(DemoError::UnknownSource(id.to_string())));
         }
     }
 
@@ -995,10 +753,7 @@ mod tests {
     #[test]
     fn the_backup_status_flips() {
         assert_eq!(statuses("server", &[], "backup", 120, 5), HashSet::from(EVERY_STATUS));
-        assert_eq!(
-            statuses("server", &[("host", "comet")], "backup", 120, 5),
-            HashSet::from(EVERY_STATUS)
-        );
+        assert_eq!(statuses("server", &[("host", "comet")], "backup", 120, 5), HashSet::from(EVERY_STATUS));
     }
 
     #[test]
@@ -1006,23 +761,11 @@ mod tests {
         // Higher is worse.
         assert_eq!(statuses("server", &[], "cpu", 7200, 5), HashSet::from(EVERY_STATUS));
         // Lower is worse.
-        assert_eq!(
-            statuses("server", &[], "disk_free", 600, 5),
-            HashSet::from(EVERY_STATUS)
-        );
-        assert_eq!(
-            statuses("spending", &[], "budget_left", 7200, 30),
-            HashSet::from(EVERY_STATUS)
-        );
+        assert_eq!(statuses("server", &[], "disk_free", 600, 5), HashSet::from(EVERY_STATUS));
+        assert_eq!(statuses("spending", &[], "budget_left", 7200, 30), HashSet::from(EVERY_STATUS));
         // The quiet host stays fine.
-        assert_eq!(
-            statuses("server", &[("host", "comet")], "cpu", 7200, 5),
-            HashSet::from([Status::Ok])
-        );
-        assert_eq!(
-            statuses("server", &[("host", "comet")], "disk_free", 600, 5),
-            HashSet::from([Status::Ok])
-        );
+        assert_eq!(statuses("server", &[("host", "comet")], "cpu", 7200, 5), HashSet::from([Status::Ok]));
+        assert_eq!(statuses("server", &[("host", "comet")], "disk_free", 600, 5), HashSet::from([Status::Ok]));
     }
 
     #[test]
@@ -1032,10 +775,7 @@ mod tests {
                 let answer = data("spending", &query(&[("period", period)]), t).unwrap();
                 let total = number(&answer, "total");
                 assert!(total >= 0.0);
-                assert!(
-                    (total + number(&answer, "budget_left") - budget).abs() < 0.011,
-                    "{period} at {t}"
-                );
+                assert!((total + number(&answer, "budget_left") - budget).abs() < 0.011, "{period} at {t}");
 
                 let Value::List(categories) = &answer.values["top_categories"].value else {
                     panic!("top_categories is not a list");
@@ -1080,10 +820,7 @@ mod tests {
 
     #[test]
     fn text_is_escaped_on_the_home_page() {
-        assert_eq!(
-            escape(r#"<a href="x">Tom & Jerry</a>"#),
-            "&lt;a href=&quot;x&quot;&gt;Tom &amp; Jerry&lt;/a&gt;"
-        );
+        assert_eq!(escape(r#"<a href="x">Tom & Jerry</a>"#), "&lt;a href=&quot;x&quot;&gt;Tom &amp; Jerry&lt;/a&gt;");
     }
 
     #[test]
@@ -1095,18 +832,9 @@ mod tests {
             for field in &tile.fields {
                 assert_eq!(field.app, "demo");
                 let source = catalogue().source(&field.source).expect("a source of the demo app");
-                assert!(
-                    source.field(&field.field).is_some(),
-                    "{}: {}.{}",
-                    tile.label,
-                    field.source,
-                    field.field
-                );
+                assert!(source.field(&field.field).is_some(), "{}: {}.{}", tile.label, field.source, field.field);
                 for (name, value) in &field.params {
-                    assert!(
-                        source.param(name).expect("a param of the source").accepts(value),
-                        "{name}={value}"
-                    );
+                    assert!(source.param(name).expect("a param of the source").accepts(value), "{name}={value}");
                 }
             }
         }

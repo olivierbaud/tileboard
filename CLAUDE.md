@@ -23,6 +23,8 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 - `cargo run -- --demo`: dashboard on `http://127.0.0.1:4700` + demo app (made-up data) on `http://127.0.0.1:4701/widgets`. No config, nothing saved.
 - `cargo run -- --config config.toml`: the dashboard with a real config (format: `config.example.toml`). `--demo-app` also runs the demo app in the same process; `--listen` wins over the file.
 - `cargo run -- --demo --web-dir web`: serve `web/` from disk, so a frontend change shows on reload (no rebuild).
+- `node --test "tests/web/*.test.js"`: the frontend's own tests (pure logic). `cargo test` runs them too when Node is installed; no package is ever installed.
+- `node tools/look.mjs [url] [folder]`: looks at a running dashboard in a headless Edge/Chrome: pictures (dark, light, phone), reads the sparkline with pointer and keyboard, reports anything sticking out of a tile and any page error. **Do this after every frontend change**, then open the pictures.
 - Before a commit: `cargo fmt` and `cargo clippy --all-targets -- -D warnings`.
 
 ## Code map
@@ -34,9 +36,17 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 - `src/hub.rs`: catalogue + data cache per app; checks every entry and works out statuses for the browser.
 - `src/layout.rs`: the layout document, its checks, and the JSON file store (`rev` guards against lost saves).
 - `src/dashboard.rs`: the browser's API (`/api/apps`, `/api/data`, `/api/layout`) and the frontend routes.
-- `src/web.rs` + `web/`: the frontend files, built into the binary. A new file needs an entry in `web.rs`.
+- `src/web.rs` + `web/`: the frontend files, built into the binary. A new file needs an entry in `web.rs` (a test checks it).
+  - `web/app.js`: loads layout + app list, polls per app, redraws changed tiles. `web/model.js`: what each tile shows (pure). `web/format.js`: numbers, units, ages (pure). `web/views.js`: the five views, status marks, the sparkline. `web/style.css`: the look.
 - `src/rfc3339.rs`: date-time format/parse without a date crate.
-- `tests/spec.rs`: small JSON Schema checker; `tests/http.rs`: the demo app; `tests/dashboard.rs`: the dashboard against the demo app and a switchable fake app.
+- `tests/spec.rs`: small JSON Schema checker; `tests/http.rs`: the demo app; `tests/dashboard.rs`: the dashboard against the demo app and a switchable fake app; `tests/web/`: frontend logic (Node's built-in runner), started by `tests/frontend.rs`.
+- `tools/browser.mjs` + `tools/look.mjs`: drive a headless browser over its DevTools protocol (Node only, no packages). Development only.
+
+## Look (keep unless Olivier changes it)
+- **A wall of tiles:** flat faces set tight, the board showing between them like grout. No shadows, no floating cards.
+- **One typeface** (Bahnschrift where the system has it, the system sans elsewhere). Numbers in ink, never in a status colour.
+- **Colour does three jobs only:** ink for text, one blue for chart lines, green/amber/red for status. Status is always shape + word + colour.
+- **Nothing jumps:** values refresh in place; old values stay, dimmed, with a note saying since when.
 
 ## Deploy
 Runs on the owner's home server, reachable over Tailscale only. Details in `.private/NOTES.md`.
@@ -49,3 +59,9 @@ Runs on the owner's home server, reachable over Tailscale only. Details in `.pri
 - The page is served with a strict Content-Security-Policy: no inline `<script>`, no `style="..."`, nothing loaded from another site. A frontend change that needs one of those will fail silently in the browser. Setting styles from JavaScript (`element.style.left = ...`) is allowed.
 - No HTTPS client: `base_url` must be `http://`. Calling `https://` apps needs a TLS crate, which is a third-party gate question.
 - In tests, the fake app's source refreshes every second: to get a fresh call without sleeping, ask with a new `who` value.
+- After a failed call the hub answers at once with what it has kept and retries in the background. So recovery shows on the request *after* the retry: a test must ask twice.
+- On Windows a refused connection takes about 2 s (Linux refuses at once). "App is down" looks slow here on first contact only.
+- `node --test` wants a quoted glob (`"tests/web/*.test.js"`), not a folder.
+- A full-page picture is scaled down when read back: thin lines and small marks can look grey or merged. Take an enlarged `clip` (see `shot` in `tools/browser.mjs`) before judging them.
+- CSS: `.plot > svg`, not `.plot svg`. The status marks are `svg` too, and a selector that catches every `svg` stretches them over their label.
+- A one-row tile (`h` = 1) has its own layout rules at the end of `style.css` (`@container (max-height: 120px)`). Check new view content there too.

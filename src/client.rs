@@ -46,10 +46,7 @@ impl fmt::Display for FetchError {
             FetchError::Timeout(limit) => write!(f, "the app did not answer within {} s", limit.as_secs_f32()),
             FetchError::Unreachable(cause) => write!(f, "cannot reach the app ({cause})"),
             FetchError::Status { code: 401, .. } => write!(f, "the app answered 401: the token is missing or wrong"),
-            FetchError::Status {
-                code,
-                message: Some(message),
-            } => write!(f, "the app answered {code}: {message}"),
+            FetchError::Status { code, message: Some(message) } => write!(f, "the app answered {code}: {message}"),
             FetchError::Status { code, message: None } => write!(f, "the app answered {code}"),
             FetchError::TooBig => write!(f, "the app's answer is larger than {} MB", MAX_BODY / (1024 * 1024)),
             FetchError::Unusable(why) => write!(f, "{why}"),
@@ -63,9 +60,7 @@ impl HttpClient {
         let mut connector = HttpConnector::new();
         connector.set_connect_timeout(Some(timeout));
         connector.set_nodelay(true);
-        let inner = Client::builder(TokioExecutor::new())
-            .pool_idle_timeout(Duration::from_secs(30))
-            .build(connector);
+        let inner = Client::builder(TokioExecutor::new()).pool_idle_timeout(Duration::from_secs(30)).build(connector);
         HttpClient { inner, timeout }
     }
 
@@ -83,11 +78,7 @@ impl HttpClient {
             .map_err(|_| FetchError::Unusable("the app's address is not valid".to_string()))?;
 
         let call = async {
-            let response = self
-                .inner
-                .request(request)
-                .await
-                .map_err(|e| FetchError::Unreachable(deepest_cause(&e)))?;
+            let response = self.inner.request(request).await.map_err(|e| FetchError::Unreachable(deepest_cause(&e)))?;
             let status = response.status();
             let body = Limited::new(response.into_body(), MAX_BODY)
                 .collect()
@@ -100,15 +91,10 @@ impl HttpClient {
             if status == StatusCode::OK {
                 Ok(body)
             } else {
-                Err(FetchError::Status {
-                    code: status.as_u16(),
-                    message: error_message(&body),
-                })
+                Err(FetchError::Status { code: status.as_u16(), message: error_message(&body) })
             }
         };
-        tokio::time::timeout(self.timeout, call)
-            .await
-            .unwrap_or(Err(FetchError::Timeout(self.timeout)))
+        tokio::time::timeout(self.timeout, call).await.unwrap_or(Err(FetchError::Timeout(self.timeout)))
     }
 }
 
@@ -124,13 +110,7 @@ fn deepest_cause(error: &(dyn Error + 'static)) -> String {
 /// The `error` text of an app's error body, cut short and with control characters removed.
 fn error_message(body: &[u8]) -> Option<String> {
     let doc: serde_json::Value = serde_json::from_slice(body).ok()?;
-    let text: String = doc
-        .get("error")?
-        .as_str()?
-        .chars()
-        .filter(|c| !c.is_control())
-        .take(MAX_MESSAGE)
-        .collect();
+    let text: String = doc.get("error")?.as_str()?.chars().filter(|c| !c.is_control()).take(MAX_MESSAGE).collect();
     (!text.is_empty()).then_some(text)
 }
 
@@ -141,37 +121,16 @@ mod tests {
     #[test]
     fn errors_read_like_sentences() {
         let cases = [
+            (FetchError::Timeout(Duration::from_secs(5)), "the app did not answer within 5 s"),
+            (FetchError::Timeout(Duration::from_millis(500)), "the app did not answer within 0.5 s"),
+            (FetchError::Unreachable("connection refused".into()), "cannot reach the app (connection refused)"),
+            (FetchError::Status { code: 500, message: None }, "the app answered 500"),
             (
-                FetchError::Timeout(Duration::from_secs(5)),
-                "the app did not answer within 5 s",
-            ),
-            (
-                FetchError::Timeout(Duration::from_millis(500)),
-                "the app did not answer within 0.5 s",
-            ),
-            (
-                FetchError::Unreachable("connection refused".into()),
-                "cannot reach the app (connection refused)",
-            ),
-            (
-                FetchError::Status {
-                    code: 500,
-                    message: None,
-                },
-                "the app answered 500",
-            ),
-            (
-                FetchError::Status {
-                    code: 404,
-                    message: Some("no such source".into()),
-                },
+                FetchError::Status { code: 404, message: Some("no such source".into()) },
                 "the app answered 404: no such source",
             ),
             (
-                FetchError::Status {
-                    code: 401,
-                    message: Some("go away".into()),
-                },
+                FetchError::Status { code: 401, message: Some("go away".into()) },
                 "the app answered 401: the token is missing or wrong",
             ),
             (FetchError::TooBig, "the app's answer is larger than 1 MB"),
@@ -183,23 +142,11 @@ mod tests {
 
     #[test]
     fn an_apps_error_text_is_passed_on_cleaned_up() {
-        assert_eq!(
-            error_message(br#"{"error": "no such source"}"#),
-            Some("no such source".to_string())
-        );
-        assert_eq!(
-            error_message(br#"{"error": "line one\nline two\u0007"}"#),
-            Some("line oneline two".to_string())
-        );
+        assert_eq!(error_message(br#"{"error": "no such source"}"#), Some("no such source".to_string()));
+        assert_eq!(error_message(br#"{"error": "line one\nline two\u0007"}"#), Some("line oneline two".to_string()));
         let long = format!(r#"{{"error": "{}"}}"#, "x".repeat(5000));
         assert_eq!(error_message(long.as_bytes()).unwrap().len(), MAX_MESSAGE);
-        for nothing in [
-            &b"not json"[..],
-            br#"{"message": "x"}"#,
-            br#"{"error": 5}"#,
-            br#"{"error": ""}"#,
-            b"",
-        ] {
+        for nothing in [&b"not json"[..], br#"{"message": "x"}"#, br#"{"error": 5}"#, br#"{"error": ""}"#, b""] {
             assert_eq!(error_message(nothing), None);
         }
     }

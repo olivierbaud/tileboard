@@ -47,20 +47,10 @@ fn an_unknown_source_is_404() {
 #[test]
 fn a_bad_param_value_is_400() {
     let addr = start();
-    for path in [
-        "/widgets/server?host=zzz",
-        "/widgets/server?points=3",
-        "/widgets/spending?period=year",
-    ] {
+    for path in ["/widgets/server?host=zzz", "/widgets/server?points=3", "/widgets/spending?period=year"] {
         let answer = get(addr, path);
         assert_eq!(answer.status, 400, "{path}");
-        assert!(
-            answer.json()["error"]
-                .as_str()
-                .unwrap()
-                .contains("is not a valid value"),
-            "{path}"
-        );
+        assert!(answer.json()["error"].as_str().unwrap().contains("is not a valid value"), "{path}");
     }
 }
 

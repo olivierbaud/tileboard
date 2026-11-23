@@ -57,10 +57,7 @@ fn check(root: &Value, schema: &Value, doc: &Value, at: &str, out: &mut Vec<Stri
         match keyword.as_str() {
             "$schema" | "$defs" | "title" | "description" => {}
             "$ref" => {
-                let name = rule
-                    .as_str()
-                    .and_then(|r| r.strip_prefix("#/$defs/"))
-                    .expect("a local $ref");
+                let name = rule.as_str().and_then(|r| r.strip_prefix("#/$defs/")).expect("a local $ref");
                 check(root, &root["$defs"][name], doc, at, out);
             }
             "type" => {
@@ -119,13 +116,7 @@ fn check(root: &Value, schema: &Value, doc: &Value, at: &str, out: &mut Vec<Stri
             "propertyNames" => {
                 if let Some(object) = doc.as_object() {
                     for name in object.keys() {
-                        check(
-                            root,
-                            rule,
-                            &Value::String(name.clone()),
-                            &format!("{at}/{name} (the name)"),
-                            out,
-                        );
+                        check(root, rule, &Value::String(name.clone()), &format!("{at}/{name} (the name)"), out);
                     }
                 }
             }
@@ -137,18 +128,12 @@ fn check(root: &Value, schema: &Value, doc: &Value, at: &str, out: &mut Vec<Stri
                 }
             }
             "minItems" => {
-                if doc
-                    .as_array()
-                    .is_some_and(|items| (items.len() as u64) < rule.as_u64().unwrap())
-                {
+                if doc.as_array().is_some_and(|items| (items.len() as u64) < rule.as_u64().unwrap()) {
                     out.push(format!("{at_or_root}: has fewer than {rule} items"));
                 }
             }
             "minLength" => {
-                if doc
-                    .as_str()
-                    .is_some_and(|s| (s.chars().count() as u64) < rule.as_u64().unwrap())
-                {
+                if doc.as_str().is_some_and(|s| (s.chars().count() as u64) < rule.as_u64().unwrap()) {
                     out.push(format!("{at_or_root}: is shorter than {rule}"));
                 }
             }
@@ -176,16 +161,9 @@ fn check(root: &Value, schema: &Value, doc: &Value, at: &str, out: &mut Vec<Stri
                 }
             }
             "oneOf" => {
-                let matching = rule
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .filter(|sub| is_valid(root, sub, doc))
-                    .count();
+                let matching = rule.as_array().unwrap().iter().filter(|sub| is_valid(root, sub, doc)).count();
                 if matching != 1 {
-                    out.push(format!(
-                        "{at_or_root}: fits {matching} of the allowed shapes, not exactly 1"
-                    ));
+                    out.push(format!("{at_or_root}: fits {matching} of the allowed shapes, not exactly 1"));
                 }
             }
             other => panic!("schema keyword {other:?} is not known to the test checker"),
@@ -222,19 +200,10 @@ fn spec_examples() -> Vec<Value> {
 fn spec_pair() -> (Value, Value) {
     let examples = spec_examples();
     let [catalogue, data] = examples.as_slice() else {
-        panic!(
-            "expected SPEC.md to have exactly 2 json examples, found {}",
-            examples.len()
-        );
+        panic!("expected SPEC.md to have exactly 2 json examples, found {}", examples.len());
     };
-    assert!(
-        catalogue.get("contract").is_some(),
-        "the first SPEC.md example should be the catalogue"
-    );
-    assert!(
-        data.get("values").is_some(),
-        "the second SPEC.md example should be the data"
-    );
+    assert!(catalogue.get("contract").is_some(), "the first SPEC.md example should be the catalogue");
+    assert!(data.get("values").is_some(), "the second SPEC.md example should be the data");
     (catalogue.clone(), data.clone())
 }
 
@@ -317,14 +286,9 @@ fn the_spec_example_is_a_cut_down_demo_catalogue() {
     let (example, _) = spec_pair();
     let example: Catalogue = serde_json::from_value(example).unwrap();
     let demo = demo::catalogue();
-    assert_eq!(
-        (example.app.as_str(), example.title.as_str()),
-        (demo.app.as_str(), demo.title.as_str())
-    );
+    assert_eq!((example.app.as_str(), example.title.as_str()), (demo.app.as_str(), demo.title.as_str()));
     for source in &example.sources {
-        let real = demo
-            .source(&source.id)
-            .unwrap_or_else(|| panic!("the demo has no source {:?}", source.id));
+        let real = demo.source(&source.id).unwrap_or_else(|| panic!("the demo has no source {:?}", source.id));
         assert_eq!((&source.title, source.refresh_s), (&real.title, real.refresh_s));
         for field in &source.fields {
             assert_eq!(Some(field), real.field(&field.id), "field {:?}", field.id);
@@ -339,20 +303,11 @@ fn the_catalogue_schema_refuses_mistakes() {
     let cases: Vec<(&str, Change)> = vec![
         ("a v1 catalogue", Box::new(|c| c["contract"] = json!(1))),
         ("contract as text", Box::new(|c| c["contract"] = json!("2"))),
-        (
-            "no contract",
-            Box::new(|c| drop(c.as_object_mut().unwrap().remove("contract"))),
-        ),
-        (
-            "an app name that is not an id",
-            Box::new(|c| c["app"] = json!("My App")),
-        ),
+        ("no contract", Box::new(|c| drop(c.as_object_mut().unwrap().remove("contract")))),
+        ("an app name that is not an id", Box::new(|c| c["app"] = json!("My App"))),
         ("an empty title", Box::new(|c| c["title"] = json!(""))),
         ("no sources", Box::new(|c| c["sources"] = json!([]))),
-        (
-            "a property that is not in the spec",
-            Box::new(|c| c["version"] = json!("1.0")),
-        ),
+        ("a property that is not in the spec", Box::new(|c| c["version"] = json!("1.0"))),
         (
             "a misspelt refresh_s",
             Box::new(|c| {
@@ -362,70 +317,28 @@ fn the_catalogue_schema_refuses_mistakes() {
             }),
         ),
         ("refresh_s of 0", Box::new(|c| c["sources"][0]["refresh_s"] = json!(0))),
-        (
-            "refresh_s with a fraction",
-            Box::new(|c| c["sources"][0]["refresh_s"] = json!(2.5)),
-        ),
-        (
-            "a source with no fields",
-            Box::new(|c| c["sources"][0]["fields"] = json!([])),
-        ),
-        (
-            "a field type that does not exist",
-            Box::new(|c| c["sources"][0]["fields"][0]["type"] = json!("gauge")),
-        ),
-        (
-            "a misspelt unit",
-            Box::new(|c| c["sources"][0]["fields"][0]["uint"] = json!("%")),
-        ),
-        (
-            "thresholds on a text field",
-            Box::new(|c| c["sources"][0]["fields"][3]["warn"] = json!(5)),
-        ),
-        (
-            "a unit on a status field",
-            Box::new(|c| c["sources"][0]["fields"][4]["unit"] = json!("%")),
-        ),
-        (
-            "thresholds on a list field",
-            Box::new(|c| c["sources"][0]["fields"][5]["crit"] = json!(5)),
-        ),
-        (
-            "a threshold as text",
-            Box::new(|c| c["sources"][0]["fields"][0]["warn"] = json!("75")),
-        ),
+        ("refresh_s with a fraction", Box::new(|c| c["sources"][0]["refresh_s"] = json!(2.5))),
+        ("a source with no fields", Box::new(|c| c["sources"][0]["fields"] = json!([]))),
+        ("a field type that does not exist", Box::new(|c| c["sources"][0]["fields"][0]["type"] = json!("gauge"))),
+        ("a misspelt unit", Box::new(|c| c["sources"][0]["fields"][0]["uint"] = json!("%"))),
+        ("thresholds on a text field", Box::new(|c| c["sources"][0]["fields"][3]["warn"] = json!(5))),
+        ("a unit on a status field", Box::new(|c| c["sources"][0]["fields"][4]["unit"] = json!("%"))),
+        ("thresholds on a list field", Box::new(|c| c["sources"][0]["fields"][5]["crit"] = json!(5))),
+        ("a threshold as text", Box::new(|c| c["sources"][0]["fields"][0]["warn"] = json!("75"))),
         (
             "a choice with no options",
             Box::new(|c| drop(c["sources"][0]["params"][0].as_object_mut().unwrap().remove("options"))),
         ),
-        (
-            "a choice with an empty options list",
-            Box::new(|c| c["sources"][0]["params"][0]["options"] = json!([])),
-        ),
-        (
-            "options on a text param",
-            Box::new(|c| c["sources"][0]["params"][0]["type"] = json!("text")),
-        ),
+        ("a choice with an empty options list", Box::new(|c| c["sources"][0]["params"][0]["options"] = json!([]))),
+        ("options on a text param", Box::new(|c| c["sources"][0]["params"][0]["type"] = json!("text"))),
         (
             "a param with no default",
             Box::new(|c| drop(c["sources"][0]["params"][0].as_object_mut().unwrap().remove("default"))),
         ),
-        (
-            "a default that is not text",
-            Box::new(|c| c["sources"][0]["params"][0]["default"] = json!(30)),
-        ),
-        (
-            "a view that does not exist",
-            Box::new(|c| c["presets"][0]["view"] = json!("gauge")),
-        ),
-        (
-            "a preset with no fields",
-            Box::new(|c| c["presets"][0]["fields"] = json!([])),
-        ),
-        (
-            "a preset param that is not text",
-            Box::new(|c| c["presets"][0]["params"] = json!({"points": 30})),
-        ),
+        ("a default that is not text", Box::new(|c| c["sources"][0]["params"][0]["default"] = json!(30))),
+        ("a view that does not exist", Box::new(|c| c["presets"][0]["view"] = json!("gauge"))),
+        ("a preset with no fields", Box::new(|c| c["presets"][0]["fields"] = json!([]))),
+        ("a preset param that is not text", Box::new(|c| c["presets"][0]["params"] = json!({"points": 30}))),
     ];
     for (what, change) in cases {
         let mut doc = good.clone();
@@ -439,76 +352,25 @@ fn the_data_schema_refuses_mistakes() {
     let schema = schema("schema/data.schema.json");
     let (_, good) = spec_pair();
     let cases: Vec<(&str, Change)> = vec![
-        (
-            "no updated_at",
-            Box::new(|d| drop(d.as_object_mut().unwrap().remove("updated_at"))),
-        ),
-        (
-            "updated_at that is not a date-time",
-            Box::new(|d| d["updated_at"] = json!("just now")),
-        ),
-        (
-            "updated_at as a number",
-            Box::new(|d| d["updated_at"] = json!(1_795_512_605)),
-        ),
-        (
-            "no values",
-            Box::new(|d| drop(d.as_object_mut().unwrap().remove("values"))),
-        ),
-        (
-            "a link to another kind of address",
-            Box::new(|d| d["link"] = json!("javascript:alert(1)")),
-        ),
-        (
-            "a link that starts with two slashes",
-            Box::new(|d| d["link"] = json!("//other.example/x")),
-        ),
+        ("no updated_at", Box::new(|d| drop(d.as_object_mut().unwrap().remove("updated_at")))),
+        ("updated_at that is not a date-time", Box::new(|d| d["updated_at"] = json!("just now"))),
+        ("updated_at as a number", Box::new(|d| d["updated_at"] = json!(1_795_512_605))),
+        ("no values", Box::new(|d| drop(d.as_object_mut().unwrap().remove("values")))),
+        ("a link to another kind of address", Box::new(|d| d["link"] = json!("javascript:alert(1)"))),
+        ("a link that starts with two slashes", Box::new(|d| d["link"] = json!("//other.example/x"))),
         ("a link that is null", Box::new(|d| d["link"] = json!(null))),
-        (
-            "a property that is not in the spec",
-            Box::new(|d| d["app"] = json!("demo")),
-        ),
-        (
-            "a field key that is not an id",
-            Box::new(|d| d["values"]["CPU load"] = json!({"value": 1})),
-        ),
+        ("a property that is not in the spec", Box::new(|d| d["app"] = json!("demo"))),
+        ("a field key that is not an id", Box::new(|d| d["values"]["CPU load"] = json!({"value": 1}))),
         ("an entry with no value", Box::new(|d| d["values"]["cpu"] = json!({}))),
-        (
-            "a bare value instead of an entry",
-            Box::new(|d| d["values"]["cpu"] = json!(41.5)),
-        ),
-        (
-            "a value that is an object",
-            Box::new(|d| d["values"]["cpu"]["value"] = json!({"n": 1})),
-        ),
-        (
-            "a value that is true",
-            Box::new(|d| d["values"]["cpu"]["value"] = json!(true)),
-        ),
-        (
-            "a status that does not exist",
-            Box::new(|d| d["values"]["cpu"]["status"] = json!("fine")),
-        ),
-        (
-            "a misspelt status",
-            Box::new(|d| d["values"]["cpu"]["state"] = json!("ok")),
-        ),
-        (
-            "a series of texts",
-            Box::new(|d| d["values"]["cpu_history"]["series"] = json!(["1", "2"])),
-        ),
-        (
-            "a list of bare texts",
-            Box::new(|d| d["values"]["services"]["value"] = json!(["web", "mail"])),
-        ),
-        (
-            "a list item with no label",
-            Box::new(|d| d["values"]["services"]["value"][0] = json!({"value": 1})),
-        ),
-        (
-            "a list item with a null value",
-            Box::new(|d| d["values"]["services"]["value"][0]["value"] = json!(null)),
-        ),
+        ("a bare value instead of an entry", Box::new(|d| d["values"]["cpu"] = json!(41.5))),
+        ("a value that is an object", Box::new(|d| d["values"]["cpu"]["value"] = json!({"n": 1}))),
+        ("a value that is true", Box::new(|d| d["values"]["cpu"]["value"] = json!(true))),
+        ("a status that does not exist", Box::new(|d| d["values"]["cpu"]["status"] = json!("fine"))),
+        ("a misspelt status", Box::new(|d| d["values"]["cpu"]["state"] = json!("ok"))),
+        ("a series of texts", Box::new(|d| d["values"]["cpu_history"]["series"] = json!(["1", "2"]))),
+        ("a list of bare texts", Box::new(|d| d["values"]["services"]["value"] = json!(["web", "mail"]))),
+        ("a list item with no label", Box::new(|d| d["values"]["services"]["value"][0] = json!({"value": 1}))),
+        ("a list item with a null value", Box::new(|d| d["values"]["services"]["value"][0]["value"] = json!(null))),
     ];
     for (what, change) in cases {
         let mut doc = good.clone();

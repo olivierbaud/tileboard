@@ -4,14 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>tileboard</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
-<header>
-  <h1>tileboard</h1>
-  <p id="summary">Loading…</p>
+<header class="bar">
+  <h1 class="name">tileboard</h1>
+  <p class="status" id="status" role="status">Loading…</p>
 </header>
-<main id="apps"></main>
-<script src="/app.js"></script>
+<main class="board" id="board"></main>
+<script type="module" src="/app.js"></script>
 </body>
 </html>

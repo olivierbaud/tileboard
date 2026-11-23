@@ -51,9 +51,7 @@ pub fn router(dashboard: Arc<Dashboard>) -> Router {
             get(move |State(dashboard): State<Arc<Dashboard>>| async move { web_file(&dashboard.web, file) }),
         );
     }
-    router
-        .fallback(|| async { error(StatusCode::NOT_FOUND, "there is nothing at this address") })
-        .with_state(dashboard)
+    router.fallback(|| async { error(StatusCode::NOT_FOUND, "there is nothing at this address") }).with_state(dashboard)
 }
 
 /// Serves the dashboard on `listener` until the process stops.
@@ -112,15 +110,8 @@ fn error(status: StatusCode, message: &str) -> Response {
 }
 
 async fn get_apps(State(dashboard): State<Arc<Dashboard>>, Query(query): Query<HashMap<String, String>>) -> Response {
-    let refresh = query
-        .get("refresh")
-        .is_some_and(|value| value == "1" || value == "true");
-    api(
-        StatusCode::OK,
-        &AppsAnswer {
-            apps: dashboard.hub.apps(refresh).await,
-        },
-    )
+    let refresh = query.get("refresh").is_some_and(|value| value == "1" || value == "true");
+    api(StatusCode::OK, &AppsAnswer { apps: dashboard.hub.apps(refresh).await })
 }
 
 async fn post_data(
@@ -132,17 +123,10 @@ async fn post_data(
         Err(rejection) => return error(rejection.status(), &rejection.body_text()),
     };
     if request.sources.len() > MAX_SOURCES {
-        return error(
-            StatusCode::BAD_REQUEST,
-            &format!("one request can name at most {MAX_SOURCES} sources"),
-        );
+        return error(StatusCode::BAD_REQUEST, &format!("one request can name at most {MAX_SOURCES} sources"));
     }
     let sources = dashboard.hub.data(request.sources).await;
-    let answer = DataAnswer {
-        now: rfc3339::format(rfc3339::now()),
-        layout_rev: dashboard.layout.rev(),
-        sources,
-    };
+    let answer = DataAnswer { now: rfc3339::format(rfc3339::now()), layout_rev: dashboard.layout.rev(), sources };
     api(StatusCode::OK, &answer)
 }
 
@@ -159,25 +143,15 @@ async fn put_layout(State(dashboard): State<Arc<Dashboard>>, body: Result<Json<L
         Ok(saved) => api(StatusCode::OK, &saved),
         Err(SaveError::Conflict { current }) => api(
             StatusCode::CONFLICT,
-            &ConflictBody {
-                error: "the layout was changed somewhere else; load it again",
-                rev: current,
-            },
+            &ConflictBody { error: "the layout was changed somewhere else; load it again", rev: current },
         ),
-        Err(SaveError::Invalid(problems)) => api(
-            StatusCode::BAD_REQUEST,
-            &InvalidBody {
-                error: "the layout is not valid",
-                problems,
-            },
-        ),
+        Err(SaveError::Invalid(problems)) => {
+            api(StatusCode::BAD_REQUEST, &InvalidBody { error: "the layout is not valid", problems })
+        }
         Err(SaveError::Io(why)) => {
             // The reason names a path on the server: it goes to the log, not to the browser.
             eprintln!("tileboard: {why}");
-            error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "the layout could not be saved; the server log says why",
-            )
+            error(StatusCode::INTERNAL_SERVER_ERROR, "the layout could not be saved; the server log says why")
         }
     }
 }
@@ -187,10 +161,7 @@ fn web_file(web: &Web, file: &WebFile) -> Response {
         Ok(text) => text,
         Err(e) => {
             eprintln!("tileboard: cannot read the frontend file {}: {e}", file.name);
-            return error(
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "a frontend file is missing; the server log says which",
-            );
+            return error(StatusCode::INTERNAL_SERVER_ERROR, "a frontend file is missing; the server log says which");
         }
     };
     let mut response = text.into_owned().into_response();

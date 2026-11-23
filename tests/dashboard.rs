@@ -21,7 +21,7 @@ use common::{get as http_get, request, send};
 use tileboard::config::Config;
 use tileboard::contract::Catalogue;
 use tileboard::dashboard::{self, Dashboard, MAX_SOURCES};
-use tileboard::hub::{Hub, TIMEOUT};
+use tileboard::hub::{Hub, Timings};
 use tileboard::layout::{Layout, LayoutStore};
 use tileboard::web::Web;
 use tileboard::{demo, rfc3339};
@@ -29,10 +29,10 @@ use tileboard::{demo, rfc3339};
 // ------------------------------------------------------------------ helpers
 
 /// Starts a dashboard for the apps in `config` (TOML text) and returns its address.
-fn dashboard_with(config: &str, starter: Layout, timeout: Duration) -> SocketAddr {
+fn dashboard_with(config: &str, starter: Layout, timings: Timings) -> SocketAddr {
     let config = Config::parse(config, Path::new("")).unwrap();
     let state = Arc::new(Dashboard {
-        hub: Hub::with_timeout(config.apps, timeout),
+        hub: Hub::with_timings(config.apps, timings),
         layout: LayoutStore::open(None, starter).unwrap(),
         web: Web::built_in(),
     });
@@ -45,16 +45,13 @@ fn app_block(name: &str, addr: SocketAddr) -> String {
 
 /// A dashboard that shows one app under the name `app`.
 fn dashboard_for(app: SocketAddr) -> SocketAddr {
-    dashboard_with(&app_block("app", app), Layout::default(), TIMEOUT)
+    dashboard_with(&app_block("app", app), Layout::default(), Timings::default())
 }
 
 /// The demo app, and a dashboard that shows it as "demo" with the demo starter layout.
 fn demo_dashboard() -> (SocketAddr, SocketAddr) {
     let app = common::start(demo::serve);
-    (
-        dashboard_with(&app_block("demo", app), demo::starter_layout("demo"), TIMEOUT),
-        app,
-    )
+    (dashboard_with(&app_block("demo", app), demo::starter_layout("demo"), Timings::default()), app)
 }
 
 /// `POST /api/data` for `sources`; the whole answer.
@@ -73,9 +70,7 @@ fn first_app(dashboard: SocketAddr, path: &str) -> Value {
 }
 
 fn error_of(answer: &Value) -> &str {
-    answer["error"]
-        .as_str()
-        .unwrap_or_else(|| panic!("no error in {answer}"))
+    answer["error"].as_str().unwrap_or_else(|| panic!("no error in {answer}"))
 }
 
 /// Longer than the fake app's refresh (1 s), the retry wait and the forced-refresh floor.
@@ -162,9 +157,9 @@ impl Fake {
     fn lets_in(&self, headers: &HeaderMap) -> bool {
         match self.token {
             None => true,
-            Some(token) => headers
-                .get(header::AUTHORIZATION)
-                .is_some_and(|sent| sent == format!("Bearer {token}").as_str()),
+            Some(token) => {
+                headers.get(header::AUTHORIZATION).is_some_and(|sent| sent == format!("Bearer {token}").as_str())
+            }
         }
     }
 }
@@ -176,6 +171,9 @@ fn no_token() -> Response {
 async fn fake_widgets(State(fake): State<Arc<Fake>>, headers: HeaderMap) -> Response {
     if !fake.lets_in(&headers) {
         return no_token();
+    }
+    if matches!(*fake.mode.lock().unwrap(), Mode::Slow) {
+        tokio::time::sleep(Duration::from_secs(3)).await;
     }
     let catalogue = fake.catalogue.lock().unwrap().clone();
     if catalogue.is_null() {
@@ -208,11 +206,9 @@ async fn fake_data(
     });
     match mode {
         Mode::Good => Json(good).into_response(),
-        Mode::Error500 => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"error": "the database is asleep"})),
-        )
-            .into_response(),
+        Mode::Error500 => {
+            (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "the database is asleep"}))).into_response()
+        }
         Mode::Slow => {
             tokio::time::sleep(Duration::from_secs(3)).await;
             Json(good).into_response()
@@ -294,22 +290,14 @@ fn demo_data_comes_checked_with_statuses_and_full_links() {
             let entry = &values[&field.id];
             assert_eq!(entry.get("error"), None, "{source}.{}", field.id);
             let has_rule = field.warn.is_some() || field.kind == tileboard::contract::FieldType::Status;
-            assert_eq!(
-                entry.get("status").is_some(),
-                has_rule,
-                "{source}.{}: {entry}",
-                field.id
-            );
+            assert_eq!(entry.get("status").is_some(), has_rule, "{source}.{}: {entry}", field.id);
         }
     }
 
     // Left-out params are filled in with their defaults.
     assert_eq!(sources[0]["params"], json!({"host": "atlas", "points": "30"}));
     assert_eq!(sources[1]["params"], json!({"host": "comet", "points": "5"}));
-    assert_eq!(
-        sources[1]["values"]["cpu_history"]["series"].as_array().unwrap().len(),
-        5
-    );
+    assert_eq!(sources[1]["values"]["cpu_history"]["series"].as_array().unwrap().len(), 5);
     assert_eq!(sources[3]["params"], json!({"period": "month"}));
 }
 
@@ -344,12 +332,8 @@ fn one_request_can_mix_good_and_bad_sources() {
 #[test]
 fn an_app_that_is_not_there_does_not_hide_the_others() {
     let demo_app = common::start(demo::serve);
-    let config = format!(
-        "{}{}",
-        app_block("gone", common::closed_port()),
-        app_block("demo", demo_app)
-    );
-    let dashboard = dashboard_with(&config, Layout::default(), TIMEOUT);
+    let config = format!("{}{}", app_block("gone", common::closed_port()), app_block("demo", demo_app));
+    let dashboard = dashboard_with(&config, Layout::default(), Timings::default());
 
     let apps = http_get(dashboard, "/api/apps").ok_json()["apps"].clone();
     assert_eq!(
@@ -359,10 +343,7 @@ fn an_app_that_is_not_there_does_not_hide_the_others() {
     assert!(error_of(&apps[0]).starts_with("cannot reach the app ("), "{}", apps[0]);
     assert_eq!((&apps[1]["name"], &apps[1]["ok"]), (&json!("demo"), &json!(true)));
 
-    let answer = data(
-        dashboard,
-        json!([{"app": "gone", "source": "x"}, {"app": "demo", "source": "weather"}]),
-    );
+    let answer = data(dashboard, json!([{"app": "gone", "source": "x"}, {"app": "demo", "source": "weather"}]));
     assert!(error_of(&answer["sources"][0]).starts_with("cannot reach the app ("));
     assert_eq!(answer["sources"][1]["ok"], true);
 }
@@ -388,18 +369,10 @@ fn a_source_is_called_once_per_refresh_however_often_it_is_asked() {
 #[test]
 fn the_same_source_asked_many_times_at_once_is_one_call() {
     let (fake, dashboard) = fake_dashboard();
-    let same: Vec<Value> = (0..10)
-        .map(|_| json!({"app": "app", "source": "s", "params": {"who": "x"}}))
-        .collect();
+    let same: Vec<Value> = (0..10).map(|_| json!({"app": "app", "source": "s", "params": {"who": "x"}})).collect();
     let answer = data(dashboard, json!(same));
     assert_eq!(answer["sources"].as_array().unwrap().len(), 10);
-    assert!(
-        answer["sources"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .all(|source| source["values"]["n"]["value"] == 1)
-    );
+    assert!(answer["sources"].as_array().unwrap().iter().all(|source| source["values"]["n"]["value"] == 1));
     assert_eq!(fake.calls(), 1);
 }
 
@@ -408,10 +381,7 @@ fn a_default_given_or_left_out_is_the_same_answer() {
     let (fake, dashboard) = fake_dashboard();
     let left_out = one(dashboard, json!({"app": "app", "source": "s"}));
     let given = ask(dashboard, "a b");
-    let with_extra = one(
-        dashboard,
-        json!({"app": "app", "source": "s", "params": {"other": "1"}}),
-    );
+    let with_extra = one(dashboard, json!({"app": "app", "source": "s", "params": {"other": "1"}}));
     for answer in [&left_out, &given, &with_extra] {
         assert_eq!(answer["params"], json!({"who": "a b"}));
         assert_eq!(answer["values"]["t"]["value"], "a b");
@@ -446,11 +416,92 @@ fn a_failed_call_keeps_the_last_good_values() {
     assert_eq!(failed["values"], good["values"], "the last good values are still there");
     assert_eq!(failed["fetched_at"], good["fetched_at"]);
 
+    // The app is back. The retry runs in the background: this ask still gets the old values, at once...
     fake.set(Mode::Good);
     wait_out_a_refresh();
+    let still = ask(dashboard, "x");
+    assert_eq!((&still["ok"], &still["values"]), (&json!(false), &good["values"]));
+    // ...and the next one has the fresh ones.
+    std::thread::sleep(Duration::from_millis(300));
     let back = ask(dashboard, "x");
     assert_eq!((&back["ok"], &back["error"]), (&json!(true), &Value::Null));
     assert_eq!(back["values"]["n"]["value"], 3);
+}
+
+/// Runs `call` and says how long it took.
+fn timed<T>(call: impl FnOnce() -> T) -> (T, Duration) {
+    let started = std::time::Instant::now();
+    (call(), started.elapsed())
+}
+
+/// The fake app times out after 0.6 s here and is retried every 0.1 s.
+fn dashboard_in_a_hurry(app: SocketAddr) -> SocketAddr {
+    let timings =
+        Timings { timeout: Duration::from_millis(600), retry: Duration::from_millis(100), ..Timings::default() };
+    dashboard_with(&app_block("app", app), Layout::default(), timings)
+}
+
+const AT_ONCE: Duration = Duration::from_millis(300);
+
+#[test]
+fn an_app_that_hangs_makes_you_wait_only_once() {
+    let (fake, app) = Fake::start();
+    fake.set(Mode::Slow);
+    let dashboard = dashboard_in_a_hurry(app);
+
+    // The first look waits until the app is given up on.
+    let (first, took) = timed(|| first_app(dashboard, "/api/apps"));
+    assert_eq!(error_of(&first), "the app did not answer within 0.6 s");
+    assert!(took >= Duration::from_millis(500), "took {took:?}");
+
+    // Every later look is answered at once from what is kept, however often the app is retried behind it.
+    for _ in 0..4 {
+        std::thread::sleep(Duration::from_millis(150));
+        let (again, took) = timed(|| first_app(dashboard, "/api/apps"));
+        assert_eq!(again["ok"], false);
+        assert!(took < AT_ONCE, "the app list took {took:?}");
+        let (answer, took) = timed(|| ask(dashboard, "x"));
+        assert_eq!(answer["ok"], false);
+        assert!(took < AT_ONCE, "the data took {took:?}");
+    }
+
+    // The app comes back: a background retry finds out, and nobody waited for it.
+    fake.set(Mode::Good);
+    let give_up = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        let (app, took) = timed(|| first_app(dashboard, "/api/apps"));
+        assert!(took < AT_ONCE, "the app list took {took:?}");
+        if app["ok"] == true {
+            break;
+        }
+        assert!(std::time::Instant::now() < give_up, "the app never came back: {app}");
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    assert_eq!(ask(dashboard, "x")["ok"], true);
+}
+
+#[test]
+fn old_values_come_at_once_while_the_app_hangs() {
+    let (fake, app) = Fake::start();
+    let dashboard = dashboard_in_a_hurry(app);
+    let good = ask(dashboard, "x");
+    assert_eq!(good["ok"], true);
+
+    // The app starts to hang. The ask that finds out waits for it...
+    fake.set(Mode::Slow);
+    wait_out_a_refresh();
+    let (found_out, took) = timed(|| ask(dashboard, "x"));
+    assert_eq!(error_of(&found_out), "the app did not answer within 0.6 s");
+    assert_eq!(found_out["values"], good["values"]);
+    assert!(took >= Duration::from_millis(500), "took {took:?}");
+
+    // ...and the ones after it get the old values at once.
+    for _ in 0..4 {
+        std::thread::sleep(Duration::from_millis(150));
+        let (later, took) = timed(|| ask(dashboard, "x"));
+        assert_eq!((&later["ok"], &later["values"]), (&json!(false), &good["values"]));
+        assert!(took < AT_ONCE, "took {took:?}");
+    }
 }
 
 #[test]
@@ -469,18 +520,15 @@ fn a_call_that_never_worked_has_no_values() {
 #[test]
 fn a_slow_app_is_given_up_on() {
     let (fake, app) = Fake::start();
-    let dashboard = dashboard_with(&app_block("app", app), Layout::default(), Duration::from_millis(400));
+    let impatient = Timings { timeout: Duration::from_millis(400), ..Timings::default() };
+    let dashboard = dashboard_with(&app_block("app", app), Layout::default(), impatient);
     assert_eq!(ask(dashboard, "warm-up")["ok"], true);
 
     fake.set(Mode::Slow);
     let started = std::time::Instant::now();
     let answer = ask(dashboard, "x");
     assert_eq!(error_of(&answer), "the app did not answer within 0.4 s");
-    assert!(
-        started.elapsed() < Duration::from_secs(2),
-        "took {:?}",
-        started.elapsed()
-    );
+    assert!(started.elapsed() < Duration::from_secs(2), "took {:?}", started.elapsed());
 }
 
 #[test]
@@ -490,19 +538,13 @@ fn bad_answers_are_refused_with_a_reason() {
         (Mode::Huge, "the app's answer is larger than 1 MB"),
         (Mode::Redirect, "the app answered 302"),
         (Mode::NotJson, "the app's answer does not follow the spec: "),
-        (
-            Mode::BadDate,
-            "the app's answer does not follow the spec: updated_at is not a date-time",
-        ),
+        (Mode::BadDate, "the app's answer does not follow the spec: updated_at is not a date-time"),
     ];
     for (i, (mode, expected)) in cases.into_iter().enumerate() {
         fake.set(mode);
         let answer = ask(dashboard, &format!("case-{i}"));
         assert_eq!(answer["ok"], false);
-        assert!(
-            error_of(&answer).starts_with(expected),
-            "expected {expected:?}, got {answer}"
-        );
+        assert!(error_of(&answer).starts_with(expected), "expected {expected:?}, got {answer}");
     }
     // The redirect was not followed: one call per case, no more.
     assert_eq!(fake.calls(), 4);
@@ -535,15 +577,9 @@ fn links_become_full_addresses_and_odd_ones_are_dropped() {
     *fake.link.lock().unwrap() = json!("https://elsewhere.example/page");
     assert_eq!(ask(dashboard, "full")["link"], "https://elsewhere.example/page");
 
-    for (i, odd) in [
-        json!("javascript:alert(1)"),
-        json!("//other.example/x"),
-        json!("page"),
-        json!(5),
-        json!(null),
-    ]
-    .into_iter()
-    .enumerate()
+    for (i, odd) in [json!("javascript:alert(1)"), json!("//other.example/x"), json!("page"), json!(5), json!(null)]
+        .into_iter()
+        .enumerate()
     {
         *fake.link.lock().unwrap() = odd.clone();
         let answer = ask(dashboard, &format!("odd-{i}"));
@@ -553,7 +589,7 @@ fn links_become_full_addresses_and_odd_ones_are_dropped() {
     // With a public_url, paths are put behind that instead of the address the server calls.
     *fake.link.lock().unwrap() = json!("/s?x=1");
     let config = format!("{}public_url = \"https://fake.example/app/\"\n", app_block("app", app));
-    let dashboard = dashboard_with(&config, Layout::default(), TIMEOUT);
+    let dashboard = dashboard_with(&config, Layout::default(), Timings::default());
     assert_eq!(ask(dashboard, "public")["link"], "https://fake.example/app/s?x=1");
 }
 
@@ -561,23 +597,14 @@ fn links_become_full_addresses_and_odd_ones_are_dropped() {
 fn the_token_is_sent_and_never_shown() {
     let (_, app) = Fake::start_with(fake_catalogue(), Some("s3cr3t-token"));
     let with = |token_line: &str| {
-        dashboard_with(
-            &format!("{}{token_line}", app_block("app", app)),
-            Layout::default(),
-            TIMEOUT,
-        )
+        dashboard_with(&format!("{}{token_line}", app_block("app", app)), Layout::default(), Timings::default())
     };
 
     let right = with("token = \"s3cr3t-token\"\n");
     let apps = http_get(right, "/api/apps");
     assert_eq!(apps.ok_json()["apps"][0]["ok"], true);
     assert!(!apps.body.contains("s3cr3t"), "the token leaked: {}", apps.body);
-    let answer = send(
-        right,
-        "POST",
-        "/api/data",
-        &json!({"sources": [{"app": "app", "source": "s"}]}),
-    );
+    let answer = send(right, "POST", "/api/data", &json!({"sources": [{"app": "app", "source": "s"}]}));
     assert_eq!(answer.ok_json()["sources"][0]["ok"], true);
     assert!(!answer.body.contains("s3cr3t"), "the token leaked: {}", answer.body);
 
@@ -585,10 +612,7 @@ fn the_token_is_sent_and_never_shown() {
         let app = first_app(wrong, "/api/apps");
         assert_eq!(app["ok"], false);
         assert_eq!(error_of(&app), "the app answered 401: the token is missing or wrong");
-        assert_eq!(
-            error_of(&ask(wrong, "x")),
-            "the app answered 401: the token is missing or wrong"
-        );
+        assert_eq!(error_of(&ask(wrong, "x")), "the app answered 401: the token is missing or wrong");
     }
 }
 
@@ -606,18 +630,9 @@ fn a_catalogue_that_does_not_follow_the_spec_is_refused() {
 
     let cases = [
         (v1, "the app speaks widget contract 1; this dashboard speaks contract 2"),
-        (
-            json!({"hello": "world"}),
-            "the app's /widgets answer is not a contract 2 catalogue",
-        ),
-        (
-            json!("just text"),
-            "the app's /widgets answer is not a contract 2 catalogue",
-        ),
-        (
-            twice,
-            "the app's catalogue does not follow the spec: source \"s\", field \"n\": id is used twice",
-        ),
+        (json!({"hello": "world"}), "the app's /widgets answer is not a contract 2 catalogue"),
+        (json!("just text"), "the app's /widgets answer is not a contract 2 catalogue"),
+        (twice, "the app's catalogue does not follow the spec: source \"s\", field \"n\": id is used twice"),
         (wrong_shape, "the app's catalogue does not follow the spec: "),
     ];
     for (catalogue, expected) in cases {
@@ -644,10 +659,7 @@ fn the_last_good_catalogue_is_kept_when_the_app_goes_away() {
     let after = first_app(dashboard, "/api/apps?refresh=1");
     assert_eq!(after["ok"], false);
     assert_eq!(error_of(&after), "the app answered 500");
-    assert_eq!(
-        after["catalogue"], before["catalogue"],
-        "the last good catalogue is still there"
-    );
+    assert_eq!(after["catalogue"], before["catalogue"], "the last good catalogue is still there");
 
     // Its sources can still be asked, with that catalogue.
     assert_eq!(ask(dashboard, "x")["ok"], true);
@@ -686,10 +698,7 @@ fn a_save_from_an_old_layout_is_a_conflict() {
     // Someone still holding rev 0 saves again.
     let answer = send(dashboard, "PUT", "/api/layout", &layout);
     assert_eq!(answer.status, 409);
-    assert_eq!(
-        answer.json(),
-        json!({"error": "the layout was changed somewhere else; load it again", "rev": 1})
-    );
+    assert_eq!(answer.json(), json!({"error": "the layout was changed somewhere else; load it again", "rev": 1}));
 }
 
 #[test]
@@ -702,10 +711,7 @@ fn a_layout_that_is_not_valid_is_not_saved() {
     let answer = send(dashboard, "PUT", "/api/layout", &too_wide);
     assert_eq!(answer.status, 400);
     assert_eq!(answer.json()["error"], "the layout is not valid");
-    assert_eq!(
-        answer.json()["problems"],
-        json!(["tile 1: x + w goes past the 12 columns"])
-    );
+    assert_eq!(answer.json()["problems"], json!(["tile 1: x + w goes past the 12 columns"]));
 
     let mut unknown_property = good.clone();
     unknown_property["tiles"][0]["colour"] = json!("red");
@@ -730,18 +736,12 @@ fn a_layout_that_is_not_valid_is_not_saved() {
 #[test]
 fn a_data_request_has_limits() {
     let (dashboard, _) = demo_dashboard();
-    let too_many: Vec<Value> = (0..=MAX_SOURCES)
-        .map(|_| json!({"app": "demo", "source": "weather"}))
-        .collect();
+    let too_many: Vec<Value> = (0..=MAX_SOURCES).map(|_| json!({"app": "demo", "source": "weather"})).collect();
     let answer = send(dashboard, "POST", "/api/data", &json!({ "sources": too_many }));
     assert_eq!(answer.status, 400);
     assert_eq!(answer.json()["error"], "one request can name at most 200 sources");
 
-    for bad in [
-        json!({}),
-        json!({"sources": [{"app": "demo"}]}),
-        json!({"sources": [], "extra": 1}),
-    ] {
+    for bad in [json!({}), json!({"sources": [{"app": "demo"}]}), json!({"sources": [], "extra": 1})] {
         let answer = send(dashboard, "POST", "/api/data", &bad);
         assert_eq!(answer.status, 422, "{bad}");
         assert!(answer.json()["error"].is_string());
@@ -757,21 +757,22 @@ fn the_frontend_is_served_locked_down() {
     let page = http_get(dashboard, "/");
     assert_eq!(page.status, 200);
     assert!(page.head.contains("content-type: text/html; charset=utf-8"));
-    assert!(
-        page.head
-            .contains("content-security-policy: default-src 'none'; script-src 'self';")
-    );
+    assert!(page.head.contains("content-security-policy: default-src 'none'; script-src 'self';"));
     assert!(page.head.contains("frame-ancestors 'none'"));
     assert!(page.head.contains("x-content-type-options: nosniff"));
     assert!(page.head.contains("referrer-policy: no-referrer"));
     assert!(page.body.contains("<title>tileboard</title>"));
 
-    let script = http_get(dashboard, "/app.js");
-    assert_eq!(script.status, 200);
-    assert!(script.head.contains("content-type: text/javascript"));
-    let style = http_get(dashboard, "/style.css");
-    assert_eq!(style.status, 200);
-    assert!(style.head.contains("content-type: text/css"));
+    // Every frontend file, with its type (browsers refuse a script module with the wrong one).
+    for file in tileboard::web::FILES {
+        let answer = http_get(dashboard, file.route);
+        assert_eq!(answer.status, 200, "{}", file.route);
+        assert!(answer.head.contains(&format!("content-type: {}", file.content_type)), "{}", file.route);
+        assert!(answer.head.contains("x-content-type-options: nosniff"), "{}", file.route);
+        assert!(!answer.body.is_empty(), "{}", file.route);
+    }
+    assert!(http_get(dashboard, "/app.js").head.contains("content-type: text/javascript"));
+    assert!(http_get(dashboard, "/style.css").head.contains("content-type: text/css"));
 
     for path in ["/nope", "/app.js.map", "/api/nope", "/../Cargo.toml", "/web/index.html"] {
         let answer = http_get(dashboard, path);
