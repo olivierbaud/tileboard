@@ -1,0 +1,13 @@
+/target
+.env
+.env.*
+!.env.example
+/.private/
+/data/
+config.toml
+!config.example.toml
+layout.json
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
