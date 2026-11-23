@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Widget contract v2: catalogue (GET /widgets)",
+  "description": "See SPEC.md. Strict on purpose: a property that is not in the spec is an error, so typos are caught.",
+  "type": "object",
+  "required": ["contract", "app", "title", "sources"],
+  "additionalProperties": false,
+  "properties": {
+    "contract": { "const": 2 },
+    "app": { "$ref": "#/$defs/id" },
+    "title": { "$ref": "#/$defs/name" },
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/source" }
+    },
+    "presets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/preset" }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source": {
+      "type": "object",
+      "required": ["id", "title", "refresh_s", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "title": { "$ref": "#/$defs/name" },
+        "refresh_s": { "type": "integer", "minimum": 1 },
+        "params": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/param" }
+        },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/field" }
+        }
+      }
+    },
+    "param": {
+      "oneOf": [
+        { "$ref": "#/$defs/choiceParam" },
+        { "$ref": "#/$defs/inputParam" }
+      ]
+    },
+    "choiceParam": {
+      "type": "object",
+      "required": ["name", "type", "options", "default"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/id" },
+        "label": { "$ref": "#/$defs/name" },
+        "type": { "const": "choice" },
+        "options": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/option" }
+        },
+        "default": { "type": "string" }
+      }
+    },
+    "inputParam": {
+      "type": "object",
+      "required": ["name", "type", "default"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/id" },
+        "label": { "$ref": "#/$defs/name" },
+        "type": { "enum": ["text", "number"] },
+        "default": { "type": "string" }
+      }
+    },
+    "option": {
+      "type": "object",
+      "required": ["value"],
+      "additionalProperties": false,
+      "properties": {
+        "value": { "type": "string" },
+        "label": { "$ref": "#/$defs/name" }
+      }
+    },
+    "field": {
+      "oneOf": [
+        { "$ref": "#/$defs/measuredField" },
+        { "$ref": "#/$defs/listField" },
+        { "$ref": "#/$defs/plainField" }
+      ]
+    },
+    "measuredField": {
+      "type": "object",
+      "required": ["id", "label", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "label": { "$ref": "#/$defs/name" },
+        "type": { "enum": ["number", "series"] },
+        "unit": { "type": "string" },
+        "warn": { "type": "number" },
+        "crit": { "type": "number" }
+      }
+    },
+    "listField": {
+      "type": "object",
+      "required": ["id", "label", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "label": { "$ref": "#/$defs/name" },
+        "type": { "const": "list" },
+        "unit": { "type": "string" }
+      }
+    },
+    "plainField": {
+      "type": "object",
+      "required": ["id", "label", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "label": { "$ref": "#/$defs/name" },
+        "type": { "enum": ["text", "status"] }
+      }
+    },
+    "preset": {
+      "type": "object",
+      "required": ["title", "source", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "title": { "$ref": "#/$defs/name" },
+        "source": { "$ref": "#/$defs/id" },
+        "fields": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/id" }
+        },
+        "params": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/id" },
+          "additionalProperties": { "type": "string" }
+        },
+        "view": { "enum": ["number", "list", "sparkline", "table", "status"] }
+      }
+    }
+  }
+}

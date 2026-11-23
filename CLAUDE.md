@@ -19,10 +19,22 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 - **Built with Fable 5.2** (Olivier's test of the model on a whole project).
 
 ## Run
-<filled in as it gets built: cargo test / cargo run -- --demo / config file format>
+- `cargo test`: unit tests, the demo app over real HTTP, and the checks that keep `SPEC.md`, `schema/` and the demo app in step.
+- `cargo run -- --demo`: the demo widget app (made-up data) on `http://127.0.0.1:4701/widgets`. `--demo-addr <ip:port>` moves it.
+- Before a commit: `cargo fmt` and `cargo clippy --all-targets -- -D warnings`.
+- Config file format: comes with Step 2 (the dashboard server).
+
+## Code map
+- `SPEC.md` + `schema/*.schema.json`: widget contract v2 (source of truth).
+- `src/contract.rs`: the contract as Rust types, `problems()` checks, `status_of()` (thresholds).
+- `src/demo.rs`: the demo app (catalogue, made-up data as a pure function of the clock, HTTP routes).
+- `src/rfc3339.rs`: date-time format/parse without a date crate.
+- `tests/spec.rs`: small JSON Schema checker; `tests/http.rs`: the demo app over a real socket.
 
 ## Deploy
 Runs on the owner's home server, reachable over Tailscale only. Details in `.private/NOTES.md`.
 
 ## Gotchas
-<one line per trap that cost time>
+- `SPEC.md` must hold exactly two fenced `json` blocks (the catalogue example, then the data example): `tests/spec.rs` reads them. The catalogue example must stay a cut-down copy of the demo app's catalogue.
+- The schema checker in `tests/spec.rs` panics on a JSON Schema keyword or `pattern` it does not know. Using a new one in `schema/` means teaching the checker first.
+- Crate versions were seeded from an already-vetted lock file. `cargo update` changes what runs: only do it on purpose, and say so.
