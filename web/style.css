@@ -995,7 +995,9 @@ select {
 
 /* --------------------------------------------------------- narrow screen */
 
-/* Two columns: small tiles side by side, wide tiles across, in reading order. */
+/* Two columns, in reading order. A small tile that shows one value or one light
+   takes half the width, so two of them sit side by side; lists, tables and
+   charts take the full width, where they can be read. */
 @media (max-width: 720px) {
   .board {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1007,8 +1009,13 @@ select {
     grid-row: span var(--h);
   }
 
-  .tile[data-size="small"] {
+  .tile[data-size="small"]:is([data-view="number"], [data-view="status"]) {
     grid-column: span 1;
+  }
+
+  /* A chart does not need its full height when it has the full width. */
+  .tile[data-view="sparkline"] {
+    grid-row: span min(var(--h), 2);
   }
 
   .bar {

@@ -429,7 +429,8 @@ fn spent_on(day: i64) -> f64 {
 fn spending(t: i64, params: &Params) -> Values {
     let (days, budget) = if params["period"] == "month" { (30, 2550.0) } else { (7, 600.0) };
     let day = t.div_euclid(60); // one made-up day per minute
-    let part_of_today = t.rem_euclid(60) as f64 / 60.0;
+    // A made-up day opens with the morning's shopping already done, then the rest comes in.
+    let part_of_today = 0.3 + 0.7 * (t.rem_euclid(60) as f64 / 60.0);
     let today = spent_on(day) * part_of_today;
 
     let start = day - day.rem_euclid(days);
@@ -456,7 +457,7 @@ fn spending(t: i64, params: &Params) -> Values {
         CATEGORIES.iter().zip(&weights).map(|((name, _), weight)| (*name, round2(total * weight / all))).collect();
     categories.sort_by(|a, b| b.1.total_cmp(&a.1));
 
-    // Nothing spent yet at the very start of a period: no biggest category.
+    // With nothing spent there is no biggest category: no data.
     let biggest = if total > 0.0 { Entry::text(categories[0].0) } else { Entry::none() };
     let top = categories.into_iter().map(|(name, amount)| Item::new(name).number(amount)).collect();
 
@@ -800,13 +801,17 @@ mod tests {
     }
 
     #[test]
-    fn a_new_period_starts_with_nothing_spent() {
+    fn a_new_period_starts_small() {
         // Made-up days are minutes; day 0 started at Unix time 0, so weeks start every 420 s.
         let week_start = T0 - T0.rem_euclid(420) + 420;
         let answer = data("spending", &HashMap::new(), week_start).unwrap();
-        assert_eq!(number(&answer, "total"), 0.0);
-        assert_eq!(answer.values["biggest"].value, Value::Null);
+        // Only the first morning's shopping: 30% of a day that costs $35 to $135.
+        let total = number(&answer, "total");
+        assert!((10.0..=41.0).contains(&total), "{total}");
+        assert_eq!(number(&answer, "budget_left"), round2(600.0 - total));
         assert_eq!(answer.values["state"], Entry::status(Status::Ok));
+        // The value of the "today" point of the series is never nothing.
+        assert!(number(&answer, "daily") > 0.0);
     }
 
     #[test]

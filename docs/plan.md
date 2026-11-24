@@ -44,7 +44,7 @@ Owner's words:
 2. **Dashboard server.** DONE 2026-11-24. Reads config, fetches each app's catalogue, grouped + cached data endpoint for the browser, layout load/save, serves the static frontend. Tests against the demo app.
 3. **View mode.** DONE 2026-11-24. Tiles render in the five views, auto-refresh, stale / error state per tile.
 4. **Edit mode.** DONE 2026-11-24. Edit button → drag + resize every tile, add-tile picker (app → source → fields → view), delete, Done saves. Drag/resize library goes through the third-party gate first (candidates: gridstack.js, or our own code).
-5. **Phone layout + README + privacy check.** Stacked view under a width breakpoint; README with demo screenshots; review every committed file and the history for anything personal.
+5. **Phone layout + README + privacy check.** DONE 2026-11-24. Stacked view under a width breakpoint; README with demo screenshots; review every committed file and the history for anything personal.
 6. **Deploy + first real app.** Home server, Tailscale only, layout in the backup. A real app adds `/widgets` in its own repo session (not from here).
 
 ## Decisions log
@@ -70,3 +70,7 @@ Owner's words:
 - 2026-11-24 (Step 4, mine): the picker lets one tile take fields from several sources, and from several apps (the plan said one app per tile for v1; the model always allowed more, and it cost nothing). Fields are ticked per source, each source with its own params; the app's presets are one-click.
 - 2026-11-24 (Step 4, mine): Done saves and locks; Cancel puts everything back. If another screen saved meanwhile, Done asks which layout to keep. Removing a tile asks nothing: Cancel is the undo.
 - 2026-11-24 (Step 4, mine): keyboard: arrow keys move the focused tile, Shift with arrows resizes, Enter changes it, Delete removes it. Under 720 px wide, tiles can be added, changed and removed but not dragged or resized.
+- 2026-11-24 (Step 5, mine): phone layout: two columns in reading order; a small tile showing one value or one light takes half the width, lists, tables and charts take all of it.
+- 2026-11-24 (Step 5, mine): README written for strangers: what it is, try it, show your own app, keep it private, how it is built, known limits. It names no other dashboard project (the comparison in "What and why" above is the owner's research, not re-checked). Its two JSON examples are tested against the spec. Pictures in `docs/images/` come from `tools/pictures.mjs` and the demo only.
+- 2026-11-24 (Step 5): privacy review of every file and the whole history: nothing personal found. The only name is the owner's in `LICENSE` and `CLAUDE.md` (his own scaffold). Every commit uses the GitHub noreply address.
+- 2026-11-24 (Step 5, mine): the demo's made-up day now opens with some spending, so the "Spent per day" tile never shows $0 in a first look. `rust-version = "1.88"` is declared (the code needs it).

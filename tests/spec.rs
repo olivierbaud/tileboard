@@ -171,40 +171,44 @@ fn check(root: &Value, schema: &Value, doc: &Value, at: &str, out: &mut Vec<Stri
     }
 }
 
-/// The fenced `json` blocks of SPEC.md.
-fn spec_examples() -> Vec<Value> {
-    let spec = read("SPEC.md");
+/// The fenced `json` blocks of a Markdown file.
+fn json_blocks(path: &str) -> Vec<Value> {
+    let text = read(path);
     let mut examples = Vec::new();
     let mut block: Option<String> = None;
-    for line in spec.lines() {
+    for line in text.lines() {
         match &mut block {
             None if line.trim() == "```json" => block = Some(String::new()),
             None => {}
-            Some(text) if line.trim() == "```" => {
+            Some(json) if line.trim() == "```" => {
                 examples.push(
-                    serde_json::from_str(text).unwrap_or_else(|e| panic!("SPEC.md example is not JSON: {e}\n{text}")),
+                    serde_json::from_str(json).unwrap_or_else(|e| panic!("{path} example is not JSON: {e}\n{json}")),
                 );
                 block = None;
             }
-            Some(text) => {
-                text.push_str(line);
-                text.push('\n');
+            Some(json) => {
+                json.push_str(line);
+                json.push('\n');
             }
         }
     }
-    assert!(block.is_none(), "SPEC.md ends inside a json block");
+    assert!(block.is_none(), "{path} ends inside a json block");
     examples
 }
 
-/// The catalogue example and the data example of SPEC.md.
-fn spec_pair() -> (Value, Value) {
-    let examples = spec_examples();
+/// The catalogue example and the data example of a Markdown file, which must hold exactly those two.
+fn example_pair(path: &str) -> (Value, Value) {
+    let examples = json_blocks(path);
     let [catalogue, data] = examples.as_slice() else {
-        panic!("expected SPEC.md to have exactly 2 json examples, found {}", examples.len());
+        panic!("expected {path} to have exactly 2 json examples, found {}", examples.len());
     };
-    assert!(catalogue.get("contract").is_some(), "the first SPEC.md example should be the catalogue");
-    assert!(data.get("values").is_some(), "the second SPEC.md example should be the data");
+    assert!(catalogue.get("contract").is_some(), "the first {path} example should be the catalogue");
+    assert!(data.get("values").is_some(), "the second {path} example should be the data");
     (catalogue.clone(), data.clone())
+}
+
+fn spec_pair() -> (Value, Value) {
+    example_pair("SPEC.md")
 }
 
 /// Every combination of a source's choice params, as query maps.
@@ -255,6 +259,17 @@ fn the_spec_examples_pass_the_schemas() {
     let (catalogue, data) = spec_pair();
     assert_eq!(violations(&schema("schema/catalogue.schema.json"), &catalogue), NOTHING);
     assert_eq!(violations(&schema("schema/data.schema.json"), &data), NOTHING);
+}
+
+#[test]
+fn the_readme_examples_follow_the_spec() {
+    let (catalogue, data) = example_pair("README.md");
+    assert_eq!(violations(&schema("schema/catalogue.schema.json"), &catalogue), NOTHING);
+    assert_eq!(violations(&schema("schema/data.schema.json"), &data), NOTHING);
+    let catalogue: Catalogue = serde_json::from_value(catalogue).unwrap();
+    let data: Data = serde_json::from_value(data).unwrap();
+    assert_eq!(catalogue.problems(), NOTHING);
+    assert_eq!(catalogue.sources[0].data_problems(&data), NOTHING);
 }
 
 #[test]

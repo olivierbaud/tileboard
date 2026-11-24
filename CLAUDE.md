@@ -25,6 +25,7 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 - `cargo run -- --demo --web-dir web`: serve `web/` from disk, so a frontend change shows on reload (no rebuild).
 - `node --test "tests/web/*.test.js"`: the frontend's own tests (pure logic). `cargo test` runs them too when Node is installed; no package is ever installed.
 - `node tools/look.mjs [url] [folder]`: looks at a running dashboard in a headless Edge/Chrome: pictures (dark, light, phone), reads the sparkline with pointer and keyboard, reports anything sticking out of a tile and any page error. **Do this after every frontend change**, then open the pictures.
+- `node tools/pictures.mjs`: retakes the README's pictures into `docs/images/` (fresh `--demo`; made-up data only). Do it when the look changes.
 - `node tools/try-edit.mjs [url] [folder]`: uses edit mode in a headless browser (drag, resize, keys, add, change, remove, cancel, save, save conflict) and checks what got saved. Needs a **freshly started** `--demo`.
 - Before a commit: `cargo fmt` and `cargo clippy --all-targets -- -D warnings`.
 
@@ -54,7 +55,7 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 Runs on the owner's home server, reachable over Tailscale only. Details in `.private/NOTES.md`.
 
 ## Gotchas
-- `SPEC.md` must hold exactly two fenced `json` blocks (the catalogue example, then the data example): `tests/spec.rs` reads them. The catalogue example must stay a cut-down copy of the demo app's catalogue.
+- `SPEC.md` must hold exactly two fenced `json` blocks (the catalogue example, then the data example): `tests/spec.rs` reads them. The catalogue example must stay a cut-down copy of the demo app's catalogue. `README.md` is held to the same two-block rule (its examples are checked against the spec).
 - The schema checker in `tests/spec.rs` panics on a JSON Schema keyword or `pattern` it does not know. Using a new one in `schema/` means teaching the checker first.
 - Crate versions were seeded from an already-vetted lock file. `cargo update` changes what runs: only do it on purpose, and say so.
 - `Cargo.lock` lists 4 crates that are never compiled (`indexmap`, `hashbrown`, `equivalent`, `toml_writer`: optional parts of `toml`). `cargo tree -i <crate>` shows what is really built.

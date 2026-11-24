@@ -1,6 +1,6 @@
 # Handover
 
-**Steps 1 to 4 of `docs/plan.md` are done (2026-11-24). Next: Step 5 (phone polish, README, privacy review).**
+**Steps 1 to 5 of `docs/plan.md` are done (2026-11-24). Next: Step 6 (deploy, first real app).**
 
 The owner was away from Step 4 on and said to go on without his decisions. What was decided without him is marked **(mine)** in the decisions log of `docs/plan.md`.
 
@@ -10,7 +10,8 @@ The owner was away from Step 4 on and said to go on without his decisions. What 
 - Dashboard server: config, hub (catalogue + data cache, background retry for apps that are down), layout store, browser API.
 - View mode: five views, auto-refresh, stale and error states, light and dark, a first phone layout.
 - Edit mode: drag, resize, keyboard, add (suggested or built in the picker, with a live preview), change, remove; Done saves, Cancel undoes; a save conflict asks which layout to keep.
-- 121 Rust tests (one of them runs the 48 frontend tests), `cargo clippy --all-targets -- -D warnings` clean.
+- `README.md` with pictures of the demo (`docs/images/`, retaken with `node tools/pictures.mjs` against a fresh `--demo`).
+- 122 Rust tests (one of them runs the 48 frontend tests), `cargo clippy --all-targets -- -D warnings` clean.
 
 ## How to check frontend work
 1. `cargo run -- --demo --web-dir web` (changes show on reload).
