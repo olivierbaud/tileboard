@@ -7,6 +7,11 @@ listen = "127.0.0.1:4700"
 # Where the layout (your tiles) is saved. A relative path starts from this file's folder.
 layout = "layout.json"
 
+# Let the settings page add and remove apps (they are kept in apps.json, next to the layout).
+# The dashboard has no login, so this lets anyone who can open it make it call an address.
+# Off unless you turn it on. Apps written in this file always work.
+# manage_apps = true
+
 # One [[apps]] block per app.
 [[apps]]
 # Your name for the app. Tiles refer to it, so do not rename it later.

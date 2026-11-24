@@ -46,6 +46,12 @@ pub const FILES: &[WebFile] = &[
         built_in: include_str!("../web/picker.js"),
     },
     WebFile {
+        route: "/settings.js",
+        name: "settings.js",
+        content_type: "text/javascript; charset=utf-8",
+        built_in: include_str!("../web/settings.js"),
+    },
+    WebFile {
         route: "/format.js",
         name: "format.js",
         content_type: "text/javascript; charset=utf-8",

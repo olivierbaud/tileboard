@@ -151,7 +151,12 @@ async fn run(options: Options) -> Result<(), String> {
     }
     println!("Stop with Ctrl+C.");
 
-    let dashboard = Arc::new(Dashboard { hub: Hub::new(config.apps), layout, web });
+    let mut dashboard = Dashboard::new(Hub::new(config.apps), layout, web);
+    if config.manage_apps {
+        println!("Apps can be added and removed from the settings page.");
+        dashboard = dashboard.managing_apps(config.apps_file);
+    }
+    let dashboard = Arc::new(dashboard);
     let dashboard = dashboard::serve(dashboard_listener, dashboard);
     let stopped = match demo_listener {
         Some(listener) => tokio::select! {

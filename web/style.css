@@ -781,6 +781,123 @@ dialog::backdrop {
   gap: 8px;
 }
 
+/* ---------------------------------------------------------------- settings */
+
+.settings {
+  width: 40rem;
+}
+
+.settings[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+.settings > h2 {
+  margin: 0 0 4px;
+  font-size: 1.25rem;
+}
+
+.settings h3 {
+  margin: 16px 0 6px;
+  font-size: 0.95rem;
+}
+
+.settings-body {
+  flex: 1;
+  min-height: 0;
+  margin-bottom: 14px;
+  padding-right: 6px;
+  overflow-y: auto;
+}
+
+.app-list,
+.report {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-list li,
+.report li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.app-list li:first-child,
+.report li:first-child {
+  border-top: 0;
+}
+
+.app-words {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.app-words span {
+  color: var(--ink-2);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+.brief {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: var(--tile);
+  color: var(--ink);
+  border: 1px solid var(--ink-3);
+  border-radius: 2px;
+  font: inherit;
+  font-size: 0.9rem;
+  resize: vertical;
+}
+
+.hand-over {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 6px;
+}
+
+.hand-over a,
+.settings a {
+  color: var(--ink);
+  text-underline-offset: 3px;
+}
+
+.settings pre {
+  margin: 6px 0;
+  padding: 8px 10px;
+  background: var(--grout);
+  border-radius: 2px;
+  font-size: 0.85rem;
+  overflow-x: auto;
+}
+
+.settings-result {
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+.settings-result p {
+  margin: 0 0 6px;
+}
+
+input[type="password"] {
+  padding: 5px 8px;
+  background: var(--tile);
+  color: var(--ink);
+  border: 1px solid var(--ink-3);
+  border-radius: 2px;
+  font: inherit;
+}
+
 /* The picker's heading and its buttons stay put; what is between them scrolls. */
 .picker {
   width: 60rem;

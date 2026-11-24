@@ -86,7 +86,22 @@ That is `GET /widgets`. The second, `GET /widgets/air`, gives the values:
 
 That is the whole idea. The details (params, lists, links, errors, an optional token) are in **[SPEC.md](SPEC.md)**, with JSON Schemas in [`schema/`](schema/). The demo app in [`src/demo.rs`](src/demo.rs) is a complete example.
 
-Then tell the dashboard where the app is:
+### Hand it to whoever writes the app
+
+You do not have to explain any of this yourself. On the dashboard, **Settings → Connect an app** gives one address, `/connect.md`, that holds everything a developer or an AI agent needs: what to build, the full contract, how to check their work, and how to register the app. Give them that address and nothing else.
+
+The dashboard also checks an app for them. It calls the app the way it will later, and says exactly what is wrong:
+
+```sh
+curl -s -X POST http://127.0.0.1:4700/api/check -H "Content-Type: application/json" \
+  -d '{"base_url": "http://127.0.0.1:8080"}'
+```
+
+With `manage_apps = true` in `config.toml`, an app that passes can be added from the settings page (or by the agent itself, with one call) and shows up at once; it is kept in `apps.json` next to your layout. This is off by default: the dashboard has no login, so turning it on lets anyone who can open the dashboard make it call an address.
+
+### Or write it into the config
+
+Tell the dashboard where the app is:
 
 ```sh
 cp config.example.toml config.toml   # then edit it

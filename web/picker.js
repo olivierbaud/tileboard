@@ -209,7 +209,8 @@ export function openPicker(context, tile) {
         const choose = el("label", "field");
         const select = el("select");
         for (const candidate of apps) {
-          const option = el("option", "", candidate.catalogue.title);
+          // The owner's name for the app tells two apps of the same kind apart.
+          const option = el("option", "", `${candidate.catalogue.title} (${candidate.name})`);
           option.value = candidate.name;
           select.append(option);
         }

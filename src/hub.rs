@@ -7,7 +7,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 use std::future::Future;
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Mutex, MutexGuard, RwLock};
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
@@ -15,7 +15,7 @@ use tokio::sync::Mutex as AsyncMutex;
 
 use crate::client::HttpClient;
 use crate::config::{AppConfig, Token};
-use crate::contract::{CONTRACT, Catalogue, Entry, Source, Status, Value, is_link};
+use crate::contract::{CONTRACT, Catalogue, Data, Entry, Source, Status, Value, is_link};
 use crate::rfc3339;
 
 /// A forced catalogue refresh is ignored if the last try was this recent.
@@ -46,9 +46,46 @@ impl Default for Timings {
     }
 }
 
+/// The most sources of one app the checker calls.
+const MAX_SOURCES_CHECKED: usize = 50;
+
 pub struct Hub {
     client: HttpClient,
-    apps: Vec<Arc<App>>,
+    timings: Timings,
+    /// The apps can change while the dashboard runs: the settings page adds and removes them.
+    apps: RwLock<Vec<Arc<App>>>,
+}
+
+/// Why an app could not be added or removed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AppChangeError {
+    /// There is already an app of that name.
+    NameTaken,
+    /// There is no app of that name.
+    NotFound,
+    /// The app is written in the config file; only apps added from the settings page can be removed here.
+    InConfigFile,
+}
+
+/// What the checker found when it called an app the way the dashboard would.
+#[derive(Debug, Clone, Serialize)]
+pub struct CheckReport {
+    /// Whether the app can be shown as it is.
+    pub ok: bool,
+    /// "Greenhouse: 2 sources, 9 fields", once the catalogue could be read.
+    pub summary: Option<String>,
+    /// What is wrong with reaching the app or with its catalogue.
+    pub problems: Vec<String>,
+    pub sources: Vec<SourceCheck>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct SourceCheck {
+    pub id: String,
+    pub title: String,
+    pub ok: bool,
+    /// What is wrong with the data this source gave (asked with no params).
+    pub problems: Vec<String>,
 }
 
 struct App {
@@ -180,6 +217,10 @@ impl<T: Clone + Send + 'static> Kept<T> {
 #[derive(Debug, Clone, Serialize)]
 pub struct AppStatus {
     pub name: String,
+    /// Where the dashboard server reaches the app.
+    pub base_url: String,
+    /// Added from the settings page, so it can be removed there.
+    pub managed: bool,
     /// Whether the last try to read the catalogue worked.
     pub ok: bool,
     pub error: Option<String>,
@@ -262,17 +303,78 @@ impl Hub {
     }
 
     pub fn with_timings(apps: Vec<AppConfig>, timings: Timings) -> Hub {
-        let apps = apps
-            .into_iter()
-            .map(|config| Arc::new(App { config, timings, catalogue: Kept::new(), answers: Mutex::default() }))
-            .collect();
-        Hub { client: HttpClient::new(timings.timeout), apps }
+        let apps = apps.into_iter().map(|config| App::new(config, timings)).collect();
+        Hub { client: HttpClient::new(timings.timeout), timings, apps: RwLock::new(apps) }
+    }
+
+    /// The apps as they are right now.
+    fn list(&self) -> Vec<Arc<App>> {
+        self.apps.read().unwrap_or_else(|poisoned| poisoned.into_inner()).clone()
+    }
+
+    /// Every app as it is configured (to save the ones added from the settings page).
+    pub fn configs(&self) -> Vec<AppConfig> {
+        self.list().iter().map(|app| app.config.clone()).collect()
+    }
+
+    /// Adds an app while the dashboard runs.
+    pub fn add(&self, config: AppConfig) -> Result<(), AppChangeError> {
+        let mut apps = self.apps.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+        if apps.iter().any(|app| app.config.name == config.name) {
+            return Err(AppChangeError::NameTaken);
+        }
+        apps.push(App::new(config, self.timings));
+        Ok(())
+    }
+
+    /// Removes an app that was added from the settings page.
+    pub fn remove(&self, name: &str) -> Result<(), AppChangeError> {
+        let mut apps = self.apps.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+        match apps.iter().position(|app| app.config.name == name) {
+            None => Err(AppChangeError::NotFound),
+            Some(at) if !apps[at].config.managed => Err(AppChangeError::InConfigFile),
+            Some(at) => {
+                apps.remove(at);
+                Ok(())
+            }
+        }
+    }
+
+    /// Calls an app the way the dashboard would, and says what is wrong: its catalogue,
+    /// then every source asked with no params. Nothing is kept.
+    pub async fn check(&self, app: &AppConfig) -> CheckReport {
+        let token = app.token.as_ref();
+        let catalogue = match fetch_catalogue(&self.client, &format!("{}/widgets", app.base_url), token).await {
+            Ok(catalogue) => catalogue,
+            Err(problem) => return CheckReport { ok: false, summary: None, problems: vec![problem], sources: vec![] },
+        };
+        let fields: usize = catalogue.sources.iter().map(|source| source.fields.len()).sum();
+        let summary = format!("{}: {} sources, {} fields", catalogue.title, catalogue.sources.len(), fields);
+
+        let mut sources = Vec::new();
+        for source in catalogue.sources.iter().take(MAX_SOURCES_CHECKED) {
+            let url = format!("{}/widgets/{}", app.base_url, source.id);
+            let problems = match self.client.get(&url, token.map(Token::reveal)).await {
+                Err(problem) => vec![problem.to_string()],
+                Ok(body) => match serde_json::from_slice::<Data>(&body) {
+                    Err(e) => vec![format!("the answer does not follow the spec: {e}")],
+                    Ok(data) => source.data_problems(&data),
+                },
+            };
+            sources.push(SourceCheck {
+                id: source.id.clone(),
+                title: source.title.clone(),
+                ok: problems.is_empty(),
+                problems,
+            });
+        }
+        CheckReport { ok: sources.iter().all(|source| source.ok), summary: Some(summary), problems: vec![], sources }
     }
 
     /// Every configured app with its catalogue. `refresh` reads the catalogues again now.
     pub async fn apps(&self, refresh: bool) -> Vec<AppStatus> {
-        let calls: Vec<_> = self
-            .apps
+        let apps = self.list();
+        let calls: Vec<_> = apps
             .iter()
             .map(|app| {
                 let (app, client) = (app.clone(), self.client.clone());
@@ -281,9 +383,11 @@ impl Hub {
             .collect();
 
         let mut statuses = Vec::new();
-        for (app, call) in self.apps.iter().zip(calls) {
+        for (app, call) in apps.iter().zip(calls) {
             statuses.push(call.await.unwrap_or_else(|_| AppStatus {
                 name: app.config.name.clone(),
+                base_url: app.config.base_url.clone(),
+                managed: app.config.managed,
                 ok: false,
                 error: Some("the dashboard failed while reading this app".to_string()),
                 checked_at: None,
@@ -295,10 +399,11 @@ impl Hub {
 
     /// The data of each requested source, in the order asked. All calls run side by side.
     pub async fn data(&self, requests: Vec<SourceRequest>) -> Vec<SourceAnswer> {
+        let apps = self.list();
         let calls: Vec<_> = requests
             .iter()
             .map(|request| {
-                let app = self.apps.iter().find(|app| app.config.name == request.app).cloned();
+                let app = apps.iter().find(|app| app.config.name == request.app).cloned();
                 let (client, request) = (self.client.clone(), request.clone());
                 tokio::spawn(async move {
                     match app {
@@ -322,6 +427,10 @@ impl Hub {
 }
 
 impl App {
+    fn new(config: AppConfig, timings: Timings) -> Arc<App> {
+        Arc::new(App { config, timings, catalogue: Kept::new(), answers: Mutex::default() })
+    }
+
     /// The app's catalogue as kept, read again first if it is time (or if `now` asks for it).
     async fn catalogue(&self, client: &HttpClient, now: bool) -> Snapshot<Arc<Catalogue>> {
         let (client, token) = (client.clone(), self.config.token.clone());
@@ -334,6 +443,8 @@ impl App {
         let kept = self.catalogue(client, refresh).await;
         AppStatus {
             name: self.config.name.clone(),
+            base_url: self.config.base_url.clone(),
+            managed: self.config.managed,
             ok: kept.error.is_none(),
             error: kept.error,
             checked_at: kept.tried_at.map(rfc3339::format),

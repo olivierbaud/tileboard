@@ -17,6 +17,7 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 - **Third-party code gate:** before adding ANY crate, npm package or vendored JS file (e.g. a grid/drag library), name it, its publisher/maintainer, maturity, how it updates and what it can reach, then wait for Olivier's go. Mainstream, organisation-maintained crates only. `Cargo.lock` committed; vendored JS pinned to an exact version with its licence file.
 - **No LLM, no metered API.**
 - **Built with Fable 5.2** (Olivier's test of the model on a whole project).
+- **Connecting an app must not need hand-editing or explaining:** "we need to find a way to connect an app. something in the settings. that could give any agent or developer what they need to connect." (2026-11-24). Hence Settings → Connect an app and `/connect.md`.
 
 ## Run
 - `cargo test`: unit tests, the demo app and the dashboard over real HTTP, and the checks that keep `SPEC.md`, `schema/` and the demo app in step. A few tests wait about a second on purpose (cache expiry).
@@ -37,9 +38,11 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 - `src/client.rs`: the HTTP client that calls apps (GET only, http:// only, 5 s, 1 MB, no redirects).
 - `src/hub.rs`: catalogue + data cache per app; checks every entry and works out statuses for the browser.
 - `src/layout.rs`: the layout document, its checks, and the JSON file store (`rev` guards against lost saves).
-- `src/dashboard.rs`: the browser's API (`/api/apps`, `/api/data`, `/api/layout`) and the frontend routes.
+- `src/dashboard.rs`: the browser's API (`/api/apps`, `/api/data`, `/api/layout`) and the frontend routes. Also connecting apps: `/connect.md` (the kit: `src/connect.md` + `SPEC.md`), `/schema/*`, `POST /api/check`, `POST /api/apps`, `DELETE /api/apps/<name>` (the last three only with `manage_apps = true`).
+- `src/connect.md`: what a developer or an agent reads to connect an app. Keep it complete on its own: it is the only thing they are given.
 - `src/web.rs` + `web/`: the frontend files, built into the binary. A new file needs an entry in `web.rs` (a test checks it).
   - `web/app.js`: loads layout + app list, polls per app, redraws changed tiles. `web/model.js`: what each tile shows (pure). `web/format.js`: numbers, units, ages (pure). `web/views.js`: the five views, status marks, the sparkline. `web/style.css`: the look.
+  - `web/settings.js`: the Settings dialog (apps, the hand-over text for a developer or agent, check and add an app).
   - `web/edit.js`: edit mode (drag, resize, keyboard, add, change, remove, Done / Cancel). `web/grid.js`: where tiles go when one moves (pure). `web/picker.js`: the dialog that chooses what a tile shows, built from the catalogues, with a live preview.
 - `src/rfc3339.rs`: date-time format/parse without a date crate.
 - `tests/spec.rs`: small JSON Schema checker; `tests/http.rs`: the demo app; `tests/dashboard.rs`: the dashboard against the demo app and a switchable fake app; `tests/web/`: frontend logic (Node's built-in runner), started by `tests/frontend.rs`.

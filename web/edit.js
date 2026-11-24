@@ -86,7 +86,7 @@ export function setUpEditing(context) {
 
   function showActions() {
     if (state.editing) actions.replaceChildren(hint, addButton, cancelButton, doneButton);
-    else actions.replaceChildren(editButton);
+    else actions.replaceChildren(...(context.viewButtons ?? []), editButton);
   }
 
   function enter() {

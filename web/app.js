@@ -3,6 +3,7 @@
 
 import { setUpEditing } from "./edit.js";
 import { pollSeconds, sourcesByApp, tileModel } from "./model.js";
+import { openSettings } from "./settings.js";
 import { drawTile, el, statusIcon } from "./views.js";
 
 /** Catalogues are read again this often, or sooner while an app is not reachable. */
@@ -17,6 +18,8 @@ const statusLine = document.getElementById("status");
 const state = {
   /** name → app, as `/api/apps` gives it. Null until the first answer. */
   apps: null,
+  /** Whether the settings page may add and remove apps on this dashboard. */
+  manageApps: false,
   layout: { rev: 0, tiles: [] },
   /** source key → answer, as `/api/data` gives it. */
   answers: new Map(),
@@ -161,23 +164,23 @@ async function loadLayout() {
   buildBoard();
 }
 
-/** Keeps the app list (the catalogues) up to date. The board does not wait for it. */
+/** Loads the app list (the catalogues) and redraws what depends on it. */
+async function loadApps() {
+  const answer = await request("/api/apps");
+  const first = state.apps === null;
+  state.apps = new Map(answer.apps.map((app) => [app.name, app]));
+  state.manageApps = answer.manage_apps;
+  drawEmptyBoard();
+  drawAll();
+  showStatus();
+  // The polling loops guessed their pace without the catalogues: let them look again.
+  if (first) wakeAll();
+}
+
+/** Keeps the app list up to date. The board does not wait for it. */
 async function appsLoop() {
   for (;;) {
-    if (!document.hidden) {
-      try {
-        const { apps } = await request("/api/apps");
-        const first = state.apps === null;
-        state.apps = new Map(apps.map((app) => [app.name, app]));
-        drawEmptyBoard();
-        drawAll();
-        showStatus();
-        // The polling loops guessed their pace without the catalogues: let them look again.
-        if (first) wakeAll();
-      } catch {
-        disconnected();
-      }
-    }
+    if (!document.hidden) await loadApps().catch(disconnected);
     const allFine = state.apps !== null && [...state.apps.values()].every((app) => app.ok);
     await sleep(allFine ? APPS_EVERY_MS : APPS_RETRY_MS);
   }
@@ -228,10 +231,22 @@ function showStatus() {
 
 // -------------------------------------------------------------------- start
 
+const settingsButton = el("button", "", "Settings");
+settingsButton.type = "button";
+settingsButton.addEventListener("click", () => {
+  if (!state.apps) return;
+  openSettings({
+    getApps: () => ({ manageApps: state.manageApps, apps: state.apps }),
+    refreshApps: () => loadApps().catch(disconnected),
+  });
+});
+
 const editing = setUpEditing({
   state,
   board,
   actions: document.getElementById("actions"),
+  /** Shown next to Edit while the board is locked. */
+  viewButtons: [settingsButton],
   rebuild: buildBoard,
   request,
   now: () => Date.now() + state.clockSkewMs,

@@ -47,6 +47,8 @@ Owner's words:
 5. **Phone layout + README + privacy check.** DONE 2026-11-24. Stacked view under a width breakpoint; README with demo screenshots; review every committed file and the history for anything personal.
 6. **Deploy + first real app.** DEPLOYED 2026-11-24 with the demo app; the first real app and the backup are still open (see the handover). Home server, Tailscale only, layout in the backup. A real app adds `/widgets` in its own repo session (not from here).
 
+7. **Connect an app from the settings.** DONE 2026-11-24 (asked for by the owner after Step 6). Settings → Connect an app: one address (`/connect.md`) with everything a developer or an agent needs; a checker that calls an app and says what is wrong; adding and removing apps from the page or by one call, kept in `apps.json`.
+
 ## Decisions log
 - 2026-11-23: widget contract adopted for all new apps (v1 shape).
 - 2026-11-24: contract v2 (apps give fields, dashboard builds tiles), unlimited tiles, edit mode, public repo with no private data, MIT ("2, MIT"), Rust ("1 rust"), name `tileboard` ("2 tileboard"), built with Fable 5.2 ("we will go Fable 5.2 full project just to test").
@@ -75,4 +77,6 @@ Owner's words:
 - 2026-11-24 (Step 5): privacy review of every file and the whole history: nothing personal found. The only name is the owner's in `LICENSE` and `CLAUDE.md` (his own scaffold). Every commit uses the GitHub noreply address.
 - 2026-11-24 (Step 6, mine): deployed on the home server the way the owner's other small apps are: a static Linux binary built on the work PC, a user-level service (no root), listening on the VPN address only, with the demo app in the same process. Checked: not reachable on the home network address or on loopback. The deploy script and real addresses are in `.private/`.
 - 2026-11-24 (Step 6): left for the owner: adding the layout file to the nightly backup (that script belongs to another project and is production; a ready patch is in the private notes), and the first real app (each app gains `/widgets` in its own repo).
+- 2026-11-24 (Step 7): owner: "we need to find a way to connect an app. something in the settings. that could give any agent or developer what they need to connect." First real app: nuc-ops ("we could go with nuc ops").
+- 2026-11-24 (Step 7, mine): the kit is one plain-text address so an agent can simply be told to read it; it carries the dashboard's own address, the steps, the easy mistakes and the whole contract. The checker and adding apps are off unless `manage_apps = true`, because the dashboard has no login and both make the server call an address someone names. An app must pass the check to be added. Apps added this way live in `apps.json` (not `config.toml`, whose comments a program would destroy); an app of the same name in `config.toml` wins.
 - 2026-11-24 (Step 5, mine): the demo's made-up day now opens with some spending, so the "Spent per day" tile never shows $0 in a first look. `rust-version = "1.88"` is declared (the code needs it).

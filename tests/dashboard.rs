@@ -31,11 +31,15 @@ use tileboard::{demo, rfc3339};
 /// Starts a dashboard for the apps in `config` (TOML text) and returns its address.
 fn dashboard_with(config: &str, starter: Layout, timings: Timings) -> SocketAddr {
     let config = Config::parse(config, Path::new("")).unwrap();
-    let state = Arc::new(Dashboard {
-        hub: Hub::with_timings(config.apps, timings),
-        layout: LayoutStore::open(None, starter).unwrap(),
-        web: Web::built_in(),
-    });
+    let mut state = Dashboard::new(
+        Hub::with_timings(config.apps, timings),
+        LayoutStore::open(None, starter).unwrap(),
+        Web::built_in(),
+    );
+    if config.manage_apps {
+        state = state.managing_apps(None);
+    }
+    let state = Arc::new(state);
     common::start(move |listener| dashboard::serve(listener, state))
 }
 
@@ -789,4 +793,174 @@ fn api_answers_are_not_kept_by_browsers() {
         assert!(answer.head.contains("cache-control: no-store"), "{}", answer.head);
         assert!(answer.head.contains("x-content-type-options: nosniff"));
     }
+}
+
+// ------------------------------------------------- connecting an app
+
+/// A dashboard that shows the demo app as "demo" and lets apps be added from outside.
+fn open_dashboard() -> (SocketAddr, SocketAddr) {
+    let app = common::start(demo::serve);
+    let config = format!("manage_apps = true\n{}", app_block("demo", app));
+    (dashboard_with(&config, Layout::default(), Timings::default()), app)
+}
+
+#[test]
+fn the_connect_kit_is_one_text_with_everything() {
+    let (dashboard, _) = open_dashboard();
+    let kit = http_get(dashboard, "/connect.md");
+    assert_eq!(kit.status, 200);
+    assert!(kit.head.contains("content-type: text/markdown; charset=utf-8"));
+    // What to do, with this dashboard's own address filled in...
+    assert!(kit.body.starts_with("# Connect an app to this tileboard"));
+    assert!(kit.body.contains(&format!("curl -s -X POST http://{dashboard}/api/check")));
+    assert!(kit.body.contains(&format!("curl -s -X POST http://{dashboard}/api/apps")));
+    assert!(kit.body.contains(&format!("http://{dashboard}/schema/data.schema.json")));
+    assert!(!kit.body.contains("{{"), "a placeholder was left in");
+    // ...and the whole contract, word for word.
+    let spec = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("SPEC.md")).unwrap();
+    assert!(kit.body.replace("\r\n", "\n").ends_with(&spec.replace("\r\n", "\n")));
+}
+
+#[test]
+fn the_connect_kit_says_to_ask_the_owner_when_apps_cannot_be_added_from_outside() {
+    let (dashboard, _) = demo_dashboard();
+    let kit = http_get(dashboard, "/connect.md").body;
+    assert!(kit.contains("does not let apps be added from outside"));
+    assert!(kit.contains("[[apps]]"));
+    assert!(!kit.contains("/api/apps -H"));
+}
+
+#[test]
+fn the_schemas_are_served() {
+    let (dashboard, _) = demo_dashboard();
+    for name in ["catalogue.schema.json", "data.schema.json"] {
+        let answer = http_get(dashboard, &format!("/schema/{name}"));
+        assert_eq!(answer.status, 200, "{name}");
+        assert!(answer.head.contains("content-type: application/schema+json"));
+        let on_disk = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("schema").join(name)).unwrap();
+        let served: Value = serde_json::from_str(&answer.body).unwrap();
+        assert_eq!(served, serde_json::from_str::<Value>(&on_disk).unwrap());
+    }
+}
+
+#[test]
+fn apps_cannot_be_changed_from_outside_unless_the_owner_allows_it() {
+    let (dashboard, app) = demo_dashboard();
+    assert_eq!(http_get(dashboard, "/api/apps").ok_json()["manage_apps"], false);
+    let entry = json!({"name": "second", "base_url": format!("http://{app}")});
+    for answer in [
+        send(dashboard, "POST", "/api/check", &json!({"base_url": format!("http://{app}")})),
+        send(dashboard, "POST", "/api/apps", &entry),
+        request(dashboard, "DELETE", "/api/apps/demo", None),
+    ] {
+        assert_eq!(answer.status, 403);
+        assert!(answer.json()["error"].as_str().unwrap().contains("manage_apps = true"));
+    }
+    assert_eq!(http_get(dashboard, "/api/apps").ok_json()["apps"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn the_checker_says_what_is_wrong_with_an_app() {
+    let (dashboard, app) = open_dashboard();
+    let check = |body: Value| send(dashboard, "POST", "/api/check", &body);
+
+    // The demo app follows the contract.
+    let good = check(json!({"base_url": format!("http://{app}")})).ok_json();
+    assert_eq!((&good["ok"], &good["summary"]), (&json!(true), &json!("Demo app: 3 sources, 20 fields")));
+    assert_eq!(good["problems"], json!([]));
+    assert_eq!(good["sources"].as_array().unwrap().len(), 3);
+    assert!(
+        good["sources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|source| source["ok"] == true && source["problems"] == json!([]))
+    );
+
+    // Nothing there.
+    let gone = check(json!({"base_url": format!("http://{}", common::closed_port())})).ok_json();
+    assert_eq!((&gone["ok"], &gone["summary"]), (&json!(false), &Value::Null));
+    assert!(gone["problems"][0].as_str().unwrap().starts_with("cannot reach the app ("), "{gone}");
+
+    // An app whose data does not fit its own catalogue: each problem is named.
+    let (fake, fake_app) = Fake::start();
+    fake.set(Mode::BadFields);
+    let bad = check(json!({"base_url": format!("http://{fake_app}")})).ok_json();
+    assert_eq!((&bad["ok"], &bad["summary"]), (&json!(false), &json!("Fake app: 1 sources, 5 fields")));
+    let problems = bad["sources"][0]["problems"].to_string();
+    assert!(problems.contains("does not follow the spec") || problems.contains("field"), "{problems}");
+
+    // An address that cannot be called at all is refused before any call.
+    for address in ["https://app.example", "app.example:80", "http://me:pw@app.example"] {
+        let answer = check(json!({"base_url": address}));
+        assert_eq!(answer.status, 400, "{address}");
+        assert!(answer.json()["problems"][0].as_str().unwrap().starts_with("base_url "));
+    }
+    // Checking adds nothing.
+    assert_eq!(http_get(dashboard, "/api/apps").ok_json()["apps"].as_array().unwrap().len(), 1);
+}
+
+#[test]
+fn an_app_can_be_added_and_removed_while_the_dashboard_runs() {
+    let (dashboard, app) = open_dashboard();
+    let address = format!("http://{app}");
+    let names = || -> Vec<String> {
+        let apps = http_get(dashboard, "/api/apps").ok_json()["apps"].clone();
+        apps.as_array().unwrap().iter().map(|app| app["name"].as_str().unwrap().to_string()).collect()
+    };
+
+    let added = send(dashboard, "POST", "/api/apps", &json!({"name": "second", "base_url": address}));
+    assert_eq!(added.status, 201, "{}", added.body);
+    assert_eq!(added.json(), json!({"name": "second", "summary": "Demo app: 3 sources, 20 fields"}));
+    assert_eq!(names(), ["demo", "second"]);
+
+    // It is there at once, marked as added from the page, and its data can be asked for.
+    let apps = http_get(dashboard, "/api/apps").ok_json()["apps"].clone();
+    assert_eq!((&apps[0]["managed"], &apps[1]["managed"]), (&json!(false), &json!(true)));
+    assert_eq!(apps[1]["base_url"], address);
+    assert_eq!(apps[1]["ok"], true);
+    assert_eq!(one(dashboard, json!({"app": "second", "source": "weather"}))["ok"], true);
+
+    // What is refused: a name twice, a name that is not an id, an app that does not pass the check.
+    let again = send(dashboard, "POST", "/api/apps", &json!({"name": "second", "base_url": address}));
+    assert_eq!((again.status, error_of(&again.json())), (409, "there is already an app called \"second\""));
+    let bad_name = send(dashboard, "POST", "/api/apps", &json!({"name": "My App", "base_url": address}));
+    assert_eq!(bad_name.status, 400);
+    let nothing_there = format!("http://{}", common::closed_port());
+    let failing = send(dashboard, "POST", "/api/apps", &json!({"name": "third", "base_url": nothing_there}));
+    assert_eq!(failing.status, 422);
+    assert_eq!(failing.json()["report"]["ok"], false);
+    assert!(error_of(&failing.json()).contains("was not added"));
+    assert_eq!(names(), ["demo", "second"]);
+
+    // Removing: only what was added from outside.
+    let config_app = request(dashboard, "DELETE", "/api/apps/demo", None);
+    assert_eq!(config_app.status, 403);
+    assert!(error_of(&config_app.json()).contains("config.toml"));
+    assert_eq!(request(dashboard, "DELETE", "/api/apps/nope", None).status, 404);
+    assert_eq!(request(dashboard, "DELETE", "/api/apps/second", None).status, 200);
+    assert_eq!(names(), ["demo"]);
+    assert_eq!(
+        error_of(&one(dashboard, json!({"app": "second", "source": "weather"}))),
+        "there is no app \"second\" in the config"
+    );
+}
+
+#[test]
+fn a_token_given_when_adding_is_used_and_never_shown() {
+    let (_, fake_app) = Fake::start_with(fake_catalogue(), Some("s3cr3t-token"));
+    let (dashboard, _) = open_dashboard();
+    let address = format!("http://{fake_app}");
+
+    let without = send(dashboard, "POST", "/api/apps", &json!({"name": "fake", "base_url": address}));
+    assert_eq!(without.status, 422);
+    assert!(without.json()["report"]["problems"][0].as_str().unwrap().contains("401"));
+
+    let with =
+        send(dashboard, "POST", "/api/apps", &json!({"name": "fake", "base_url": address, "token": "s3cr3t-token"}));
+    assert_eq!(with.status, 201, "{}", with.body);
+    let apps = http_get(dashboard, "/api/apps");
+    assert_eq!(apps.ok_json()["apps"][1]["ok"], true);
+    assert!(!apps.body.contains("s3cr3t"), "the token leaked: {}", apps.body);
+    assert_eq!(one(dashboard, json!({"app": "fake", "source": "s"}))["ok"], true);
 }
