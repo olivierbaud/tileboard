@@ -12,7 +12,7 @@ Before changing anything, ask the owner which of the decisions marked **(mine)**
 - HTTP client and config: "hyper-util, HTTP only (Recommended)" and "TOML via the toml crate (Recommended)".
 - While away: "Go without my consent now, I am not available, so do whatever you can without my decisions". The third-party gate stayed in force; no crate or library was added after that.
 - Connecting apps: "we need to find a way to connect an app. something ion the settings. that could give any agent or developper what they need to connect." He also named the app to connect first (private notes).
-- The backup: "i dont understand your backup thing and what it has to do with vertigo triage", then, once explained, "1" (do it now).
+- The backup: "i dont understand your backup thing and what it has to do with [another of his projects]", then, once explained, "1" (do it now). The exact words are in the private notes.
 
 ## Shipped
 | Commit | What |
@@ -34,7 +34,7 @@ The home server's nightly backup now includes the layout, the apps added from th
 2. **Decisions marked (mine)** in `docs/plan.md` (own drag and resize, tiles always packed upward, one tile may mix sources and apps, the look, the phone layout, app management on for the home server).
    1. (default) Keep them.
    2. Say which to change.
-3. **A name in the public history.** Commit `54caba2` named one of the owner's apps in two docs. The current files no longer do; the old commit still does. It is a name only: no address, no secret.
+3. **Two names in the public history.** Commit `54caba2` named one of the owner's apps in two docs, and commit `93ae8b0` quoted him naming another of his projects. The current files no longer do; those two commits still do. Names only: no address, no secret.
    1. (default) Leave the history as it is.
    2. Rewrite the public history to remove it (a force-push: the owner decides).
 
