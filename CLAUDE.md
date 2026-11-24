@@ -54,6 +54,10 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 ## Deploy
 Runs on the owner's home server, reachable over Tailscale only. Details in `.private/NOTES.md`.
 
+- `bash .private/deploy.sh` (Git Bash; tree clean and pushed): tests, Linux binary built here, copied over, user-level service restarted, health check. The script, the unit and the server's config hold real addresses, so they live in `.private/` and are never committed.
+- The server's `config.toml` and `layout.json` are copied on the first deploy only. Later deploys never overwrite them.
+- A public example of running it as a service is in `README.md` (placeholder address).
+
 ## Gotchas
 - `SPEC.md` must hold exactly two fenced `json` blocks (the catalogue example, then the data example): `tests/spec.rs` reads them. The catalogue example must stay a cut-down copy of the demo app's catalogue. `README.md` is held to the same two-block rule (its examples are checked against the spec).
 - The schema checker in `tests/spec.rs` panics on a JSON Schema keyword or `pattern` it does not know. Using a new one in `schema/` means teaching the checker first.

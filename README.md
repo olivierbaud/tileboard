@@ -103,6 +103,33 @@ base_url = "http://127.0.0.1:8080"
 
 An app that is unreachable, or whose answers do not follow the spec, is listed on the board with the reason.
 
+### Run it as a service (Linux)
+
+`cargo build --release` gives one binary, `target/release/tileboard`, with the page built in. A user-level systemd unit needs no root:
+
+```ini
+# ~/.config/systemd/user/tileboard.service
+[Unit]
+Description=tileboard
+After=network-online.target
+
+[Service]
+WorkingDirectory=%h/tileboard
+ExecStart=%h/tileboard/tileboard --config %h/tileboard/config.toml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+```
+
+```sh
+systemctl --user enable --now tileboard
+loginctl enable-linger "$USER"    # keep it running when you are logged out
+```
+
+Set `listen` in `config.toml` to an address on your private network (a VPN address, for example), not to `0.0.0.0`.
+
 ## Keep it private
 
 - **The dashboard has no login.** Run it on a private network (your home network, a VPN). Do not put it on the open internet.
