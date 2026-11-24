@@ -4,6 +4,8 @@ One page of tiles fed by all your apps: server health next to the weather next t
 
 Your apps say what data they have. You tick the fields you want, and the dashboard builds the tile. Then you drag and resize tiles until the board looks right.
 
+Have an app to show? Give **[CONNECT.md](CONNECT.md)** to whoever writes it, a developer or an AI agent. It is all they need.
+
 ![The board with the demo data](docs/images/board-light.png)
 
 *Everything in these pictures is made up by the built-in demo app.*
@@ -88,7 +90,9 @@ That is the whole idea. The details (params, lists, links, errors, an optional t
 
 ### Hand it to whoever writes the app
 
-You do not have to explain any of this yourself. On the dashboard, **Settings → Connect an app** gives one address, `/connect.md`, that holds everything a developer or an AI agent needs: what to build, the full contract, how to check their work, and how to register the app. Give them that address and nothing else.
+You do not have to explain any of this yourself. **[CONNECT.md](CONNECT.md)** holds everything a developer or an AI agent needs: what to build, the full contract, how to check their work, and how to register the app. Give them that link and nothing else.
+
+Once your dashboard runs, it serves the same page at `/connect.md` (**Settings → Connect an app**), with its own address filled in and only the steps that apply to it. Give that one instead, then.
 
 The dashboard also checks an app for them. It calls the app the way it will later, and says exactly what is wrong:
 

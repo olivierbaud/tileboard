@@ -1,6 +1,6 @@
-# Connect an app to this tileboard
+# Connect an app to tileboard
 
-This page is for whoever makes an app show up on the dashboard at {{DASHBOARD}}: a developer, or an AI agent working in the app's code. Everything needed is here. Nothing else has to be read.
+{{ABOUT}}
 
 ## The idea
 
@@ -15,11 +15,7 @@ The app answers two read-only JSON addresses. The first says what data it has. T
 
 1. **Choose what to offer.** Group values that are fetched together into a *source* (for example `server`, `orders`, `weather`). Each value is a *field* with a type: `number`, `text`, `status` (ok / warn / crit), `series` (a short history, drawn as a small chart) or `list`. Offer what the owner would glance at: current numbers, a state, a short history, a top-5 list. Never offer secrets: everything in a source can end up on a screen.
 2. **Add the two addresses to the app**, following the contract below exactly. Keep them read-only and fast: answer from memory or a cache, never run a slow query per request. Use the app's existing way of serving HTTP. Add no new dependency if the app can already answer JSON.
-3. **Check your work** with this dashboard's checker. It calls the app the way the dashboard will, and says exactly what is wrong:
-
-   ```sh
-   curl -s -X POST {{DASHBOARD}}/api/check -H "Content-Type: application/json" -d '{"base_url": "http://ADDRESS-OF-THE-APP"}'
-   ```
+3. **Check your work.** {{CHECK}}
 
    `ADDRESS-OF-THE-APP` is where the dashboard **server** reaches the app. It must start with `http://` (the dashboard cannot call `https://` yet). If the app and the dashboard run on the same machine, the app must listen on an address the dashboard can call. Add `"token": "..."` if the app asks for one. Repeat until the answer says `"ok": true`.
 4. **Connect it.** {{CONNECT}}

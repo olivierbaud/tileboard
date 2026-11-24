@@ -40,7 +40,8 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 - `src/hub.rs`: catalogue + data cache per app; checks every entry and works out statuses for the browser.
 - `src/layout.rs`: the layout document, its checks, and the JSON file store (`rev` guards against lost saves).
 - `src/dashboard.rs`: the browser's API (`/api/apps`, `/api/data`, `/api/layout`) and the frontend routes. Also connecting apps: `/connect.md` (the kit: `src/connect.md` + `SPEC.md`), `/schema/*`, `POST /api/check`, `POST /api/apps`, `DELETE /api/apps/<name>` (the last three only with `manage_apps = true`).
-- `src/connect.md`: what a developer or an agent reads to connect an app. Keep it complete on its own: it is the only thing they are given.
+- `src/connect.md`: what a developer or an agent reads to connect an app. Keep it complete on its own: it is the only thing they are given. `connect_kit()` in `src/dashboard.rs` fills it in three ways: for a dashboard that adds apps itself, for one that does not, and for the repository.
+- `CONNECT.md`: the kit for the repository (read on GitHub before any dashboard runs). Generated, never edited by hand: a test checks it.
 - `src/web.rs` + `web/`: the frontend files, built into the binary. A new file needs an entry in `web.rs` (a test checks it).
   - `web/app.js`: loads layout + app list, polls per app, redraws changed tiles. `web/model.js`: what each tile shows (pure). `web/format.js`: numbers, units, ages (pure). `web/views.js`: the five views, status marks, the sparkline. `web/style.css`: the look.
   - `web/settings.js`: the Settings dialog (apps, the hand-over text for a developer or agent, check and add an app).
@@ -64,6 +65,7 @@ Runs on the owner's home server, reachable over Tailscale only. Details in `.pri
 
 ## Gotchas
 - `SPEC.md` must hold exactly two fenced `json` blocks (the catalogue example, then the data example): `tests/spec.rs` reads them. The catalogue example must stay a cut-down copy of the demo app's catalogue. `README.md` is held to the same two-block rule (its examples are checked against the spec).
+- Changing `src/connect.md`, the kit's texts in `src/dashboard.rs` or `SPEC.md` makes a test fail until `CONNECT.md` is rewritten: `TILEBOARD_WRITE_CONNECT=1 cargo test --test dashboard connect_md` (Git Bash).
 - The schema checker in `tests/spec.rs` panics on a JSON Schema keyword or `pattern` it does not know. Using a new one in `schema/` means teaching the checker first.
 - Crate versions were seeded from an already-vetted lock file. `cargo update` changes what runs: only do it on purpose, and say so.
 - `Cargo.lock` lists 4 crates that are never compiled (`indexmap`, `hashbrown`, `equivalent`, `toml_writer`: optional parts of `toml`). `cargo tree -i <crate>` shows what is really built.

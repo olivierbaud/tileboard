@@ -27,7 +27,7 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 
-use crate::config::{AppConfig, AppEntry, save_managed_apps};
+use crate::config::{AppConfig, AppEntry, DEFAULT_LISTEN, save_managed_apps};
 use crate::hub::{AppChangeError, AppStatus, CheckReport, Hub, SourceAnswer, SourceRequest};
 use crate::layout::{Layout, LayoutStore, SaveError};
 use crate::rfc3339;
@@ -89,7 +89,7 @@ pub fn router(dashboard: Arc<Dashboard>) -> Router {
         .route("/api/check", post(post_check))
         .route("/api/data", post(post_data))
         .route("/api/layout", get(get_layout).put(put_layout))
-        .route("/connect.md", get(connect_kit))
+        .route("/connect.md", get(serve_connect_kit))
         .route("/schema/catalogue.schema.json", get(|| async { schema(CATALOGUE_SCHEMA) }))
         .route("/schema/data.schema.json", get(|| async { schema(DATA_SCHEMA) }));
     for file in FILES {
@@ -267,20 +267,102 @@ async fn delete_app(State(dashboard): State<Arc<Dashboard>>, Path(name): Path<St
     }
 }
 
-/// The connect kit: one text with everything a developer or an agent needs, this dashboard's own address filled in.
-async fn connect_kit(State(dashboard): State<Arc<Dashboard>>, headers: HeaderMap) -> Response {
+/// The connect kit, as this dashboard serves it: its own address filled in, only the steps that apply to it.
+async fn serve_connect_kit(State(dashboard): State<Arc<Dashboard>>, headers: HeaderMap) -> Response {
     // The address the reader used to get here is the one they can use for the next calls.
     let host = headers.get(HOST).and_then(|host| host.to_str().ok()).filter(|host| {
         !host.is_empty()
             && host.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b':' | b'[' | b']'))
     });
-    let address = format!("http://{}", host.unwrap_or("ADDRESS-OF-THE-DASHBOARD"));
-    let connect = if dashboard.manage_apps { CONNECT_BY_CALL } else { CONNECT_BY_OWNER };
-    let text = format!("{}{SPEC}", CONNECT_KIT.replace("{{CONNECT}}", connect).replace("{{DASHBOARD}}", &address));
-    text_answer(text, "text/markdown; charset=utf-8")
+    let address = host.map_or_else(|| ANY_DASHBOARD.to_string(), |host| format!("http://{host}"));
+    let kit_for = if dashboard.manage_apps { KitFor::OpenDashboard } else { KitFor::ClosedDashboard };
+    text_answer(connect_kit(&address, kit_for), "text/markdown; charset=utf-8")
 }
 
-const CONNECT_BY_CALL: &str = "Register the app on the dashboard. The dashboard checks it first and refuses an app that does not pass:
+/// Who the connect kit is written for.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KitFor {
+    /// A running dashboard that checks and adds apps itself (`manage_apps = true`).
+    OpenDashboard,
+    /// A running dashboard that does neither: its owner writes apps into `config.toml`.
+    ClosedDashboard,
+    /// No dashboard in particular: the copy kept in the repository as `CONNECT.md`, read before any dashboard runs.
+    Repository,
+}
+
+/// The address the kit gives when it cannot know the dashboard's.
+pub const ANY_DASHBOARD: &str = "http://ADDRESS-OF-THE-DASHBOARD";
+
+/// The connect kit for a dashboard at `address`: one text with everything a developer or an agent needs
+/// (what to do, then the whole contract).
+pub fn connect_kit(address: &str, kit_for: KitFor) -> String {
+    // The dashboard's address stays a placeholder until the end.
+    const HERE: &str = "{{DASHBOARD}}";
+    let test = format!("http://{DEFAULT_LISTEN}");
+    let about_here = format!(
+        "This page is for whoever makes an app show up on the dashboard at {HERE}: a developer, or an AI agent \
+         working in the app's code. Everything needed is here. Nothing else has to be read."
+    );
+    let (about, check, connect) = match kit_for {
+        KitFor::OpenDashboard => (
+            about_here,
+            format!(
+                "This dashboard's checker calls the app the way the dashboard will, and says exactly what is wrong:\n\n{}",
+                check_call(HERE)
+            ),
+            format!("Register the app on the dashboard. {REGISTER}"),
+        ),
+        KitFor::ClosedDashboard => (
+            about_here,
+            format!(
+                "This dashboard does not check apps from outside (its owner can allow it with `manage_apps = true` in \
+                 `config.toml`). Use a test dashboard instead: in a copy of tileboard, `cargo run -- --demo` starts one \
+                 at {test} (made-up data, nothing saved). Its checker calls the app the way a dashboard will, and says \
+                 exactly what is wrong:\n\n{}",
+                check_call(&test)
+            ),
+            format!(
+                "This dashboard does not let apps be added from outside. Give its owner this block for the dashboard's \
+                 `config.toml` (then they restart the dashboard):\n\n{OWNER_BLOCK}"
+            ),
+        ),
+        KitFor::Repository => (
+            format!(
+                "This page is for whoever makes an app show up on a tileboard dashboard: a developer, or an AI agent \
+                 working in the app's code. Everything needed is here. Nothing else has to be read.\n\n\
+                 This is the copy kept in tileboard's repository, for reading before any dashboard runs, so it cannot \
+                 know where yours is: `{HERE}` below stands for its address. A running dashboard serves this same page \
+                 at `/connect.md`, with its own address filled in and only the steps that apply to it (on the \
+                 dashboard: Settings, then Connect an app). Give that one if you can.\n\n\
+                 No dashboard yet? In a copy of this repository, `cargo run -- --demo` (needs Rust) starts one at \
+                 {test}, with made-up data. It checks and adds apps, and saves nothing: good for trying an app out."
+            ),
+            format!(
+                "The dashboard's checker calls the app the way the dashboard will, and says exactly what is wrong. It \
+                 answers only if the dashboard allows it (`manage_apps = true` in its `config.toml`); the test \
+                 dashboard of `cargo run -- --demo` always does, at {test}:\n\n{}",
+                check_call(HERE)
+            ),
+            format!(
+                "If the dashboard lets apps be added from outside (`manage_apps = true` in its `config.toml`), register \
+                 the app there. {REGISTER}\n\n   If it does not, give its owner this block for the dashboard's \
+                 `config.toml` (then they restart the dashboard):\n\n{OWNER_BLOCK}"
+            ),
+        ),
+    };
+    let steps = CONNECT_KIT.replace("{{ABOUT}}", &about).replace("{{CHECK}}", &check).replace("{{CONNECT}}", &connect);
+    format!("{}{SPEC}", steps.replace(HERE, address))
+}
+
+/// The call that checks an app against the dashboard at `at`, as an indented block of the kit's list.
+fn check_call(at: &str) -> String {
+    format!(
+        "   ```sh\n   curl -s -X POST {at}/api/check -H \"Content-Type: application/json\" \
+         -d '{{\"base_url\": \"http://ADDRESS-OF-THE-APP\"}}'\n   ```"
+    )
+}
+
+const REGISTER: &str = "The dashboard checks it first and refuses an app that does not pass:
 
    ```sh
    curl -s -X POST {{DASHBOARD}}/api/apps -H \"Content-Type: application/json\" -d '{\"name\": \"my-app\", \"base_url\": \"http://ADDRESS-OF-THE-APP\"}'
@@ -288,9 +370,7 @@ const CONNECT_BY_CALL: &str = "Register the app on the dashboard. The dashboard 
 
    `name` is the owner's short name for the app (lowercase letters, digits, `_`, `-`). Tiles refer to it, so it must not change later. Optional: `\"public_url\"` (where a browser reaches the app, if that differs, for the links on tiles) and `\"token\"`. The owner can do the same by hand on the dashboard: Settings, then Connect an app.";
 
-const CONNECT_BY_OWNER: &str = "This dashboard does not let apps be added from outside. Give its owner this block for the dashboard's `config.toml` (then they restart the dashboard):
-
-   ```toml
+const OWNER_BLOCK: &str = "   ```toml
    [[apps]]
    name = \"my-app\"                             # the owner's short name; tiles refer to it
    base_url = \"http://ADDRESS-OF-THE-APP\"

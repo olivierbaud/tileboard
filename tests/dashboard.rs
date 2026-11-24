@@ -811,7 +811,8 @@ fn the_connect_kit_is_one_text_with_everything() {
     assert_eq!(kit.status, 200);
     assert!(kit.head.contains("content-type: text/markdown; charset=utf-8"));
     // What to do, with this dashboard's own address filled in...
-    assert!(kit.body.starts_with("# Connect an app to this tileboard"));
+    assert!(kit.body.starts_with("# Connect an app to tileboard"));
+    assert!(kit.body.contains(&format!("the dashboard at http://{dashboard}:")));
     assert!(kit.body.contains(&format!("curl -s -X POST http://{dashboard}/api/check")));
     assert!(kit.body.contains(&format!("curl -s -X POST http://{dashboard}/api/apps")));
     assert!(kit.body.contains(&format!("http://{dashboard}/schema/data.schema.json")));
@@ -828,6 +829,37 @@ fn the_connect_kit_says_to_ask_the_owner_when_apps_cannot_be_added_from_outside(
     assert!(kit.contains("does not let apps be added from outside"));
     assert!(kit.contains("[[apps]]"));
     assert!(!kit.contains("/api/apps -H"));
+    // Its own checker would refuse, so the check is done on a test dashboard.
+    assert!(!kit.contains(&format!("http://{dashboard}/api/check")));
+    assert!(kit.contains("curl -s -X POST http://127.0.0.1:4700/api/check"));
+    assert!(kit.contains("cargo run -- --demo"));
+}
+
+/// `CONNECT.md`: the kit for reading on GitHub, before any dashboard runs. Rewrite it with
+/// `TILEBOARD_WRITE_CONNECT=1 cargo test --test dashboard connect_md`.
+#[test]
+fn connect_md_is_the_kit_for_any_dashboard_and_up_to_date() {
+    let kit = dashboard::connect_kit(dashboard::ANY_DASHBOARD, dashboard::KitFor::Repository);
+    assert!(!kit.contains("{{"), "a placeholder was left in");
+    assert!(kit.contains("curl -s -X POST http://ADDRESS-OF-THE-DASHBOARD/api/check"));
+    // Both ways to connect, since it cannot know which the dashboard allows.
+    assert!(kit.contains("curl -s -X POST http://ADDRESS-OF-THE-DASHBOARD/api/apps"));
+    assert!(kit.contains("[[apps]]"));
+
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("CONNECT.md");
+    let on_disk = std::fs::read_to_string(&path).unwrap_or_default().replace("\r\n", "\n");
+    let kit = kit.replace("\r\n", "\n");
+    if on_disk == kit {
+        return;
+    }
+    if std::env::var_os("TILEBOARD_WRITE_CONNECT").is_some() {
+        std::fs::write(&path, kit).unwrap();
+        return;
+    }
+    panic!(
+        "CONNECT.md is not the kit any more (src/connect.md, the kit's texts in src/dashboard.rs or SPEC.md changed). \
+         Rewrite it: TILEBOARD_WRITE_CONNECT=1 cargo test --test dashboard connect_md"
+    );
 }
 
 #[test]
