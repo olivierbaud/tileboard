@@ -5,6 +5,7 @@ A modular dashboard: apps describe their own data through two read-only endpoint
 ## This repo is PUBLIC (MIT)
 - **Nothing personal is ever committed:** no IPs, hostnames, Tailscale names, tokens, real app addresses, real layouts, real data, local paths or emails. Those live in `.private/` or a git-ignored config file. Fixtures, examples and screenshots use made-up data only (the demo app).
 - No employer, customer or site names. No security / access-control integrations in this repo.
+- **The owner's own apps are not named here either** (which apps he runs is private). Say "the first real app"; the names are in `.private/NOTES.md`.
 - Before every commit: `git diff --cached` and look for anything that wouldn't be safe on the public internet. GitHub secret scanning + push protection are on; they are a backstop, not the check.
 - Commits use the GitHub noreply email (repo-local git config). Don't change it.
 
