@@ -6,7 +6,7 @@ The owner was away from Step 4 on and said to go on without his decisions. What 
 
 ## Open, in order
 1. **Owner: look at the decisions marked (mine)** and say what to change.
-2. **Owner: put the layout in the nightly backup.** The patch is written out in `.private/NOTES.md`; it goes into another project's production script, so it was not done unattended.
+2. ~~Put the layout in the nightly backup.~~ Done 2026-11-24 with the owner's go: the layout, the apps added from the settings page and the config are in the home server's nightly backup.
 3. **First real app: nuc-ops** (owner's pick). In a session in that app's repo, give the agent the hand-over text from Settings → Connect an app (it points at the dashboard's `/connect.md`). The agent builds `/widgets`, checks it with `POST /api/check`, and registers the app with `POST /api/apps`. No file editing. That completes "v1 done" in the plan.
 4. Small things listed under "Not done" below.
 
